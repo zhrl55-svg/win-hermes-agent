@@ -12,7 +12,7 @@
   <a href="https://github.com/win-hermes/win-hermes"><img src="https://img.shields.io/badge/Windows-Branch-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows Branch"></a>
 </p>
 
-> **这是 Hermes Agent 的 Windows 原生适配分支**。所有代码针对 Windows 环境进行了专项优化，可在 Windows PowerShell / CMD 下直接运行，无需 WSL、WSL2 或虚拟机。
+> **This is the Windows native adaptation branch of Hermes Agent.** All code has been specially optimized for the Windows environment and can run directly under Windows PowerShell / CMD without WSL, WSL2, or virtual machines.
 
 **The self-improving AI agent built by [Nous Research](https://nousresearch.com).** It's the only agent with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on a $5 VPS, a GPU cluster, or serverless infrastructure that costs nearly nothing when idle. It's not tied to your laptop — talk to it from Telegram while it works on a cloud VM.
 
