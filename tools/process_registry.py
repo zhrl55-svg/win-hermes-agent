@@ -33,6 +33,7 @@ import json
 import logging
 import os
 import platform
+import tempfile
 import shlex
 import signal
 import subprocess
@@ -275,8 +276,13 @@ class ProcessRegistry:
                 temp_dir = get_temp_dir()
                 if isinstance(temp_dir, str) and temp_dir.startswith("/"):
                     return temp_dir.rstrip("/") or "/"
+                elif isinstance(temp_dir, str) and (temp_dir[1:].startswith(":") or _IS_WINDOWS):
+                    # Windows absolute path (e.g. "C:\Users\...")
+                    return temp_dir
             except Exception as exc:
                 logger.debug("Could not resolve environment temp dir: %s", exc)
+        if _IS_WINDOWS:
+            return tempfile.gettempdir()
         return "/tmp"
 
     def spawn_local(

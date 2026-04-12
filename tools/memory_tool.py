@@ -23,12 +23,25 @@ Design:
 - Frozen snapshot pattern: system prompt is stable, tool responses show live state
 """
 
-import fcntl
 import json
 import logging
 import os
 import re
+import sys
 import tempfile
+import threading
+
+# File locking: fcntl on Unix, msvcrt on Windows
+if sys.platform == "win32":
+    import msvcrt
+    _LOCK_EX = 2   # LK_LOCK on Windows
+    _LOCK_UN = 0   # LK_UNLCK
+    _LOCK_MUTEX = threading.Lock()
+else:
+    import fcntl
+    _LOCK_EX = fcntl.LOCK_EX
+    _LOCK_UN = fcntl.LOCK_UN
+    _LOCK_MUTEX = None
 from contextlib import contextmanager
 from pathlib import Path
 from hermes_constants import get_hermes_home
@@ -144,13 +157,28 @@ class MemoryStore:
         """
         lock_path = path.with_suffix(path.suffix + ".lock")
         lock_path.parent.mkdir(parents=True, exist_ok=True)
-        fd = open(lock_path, "w")
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX)
-            yield
-        finally:
-            fcntl.flock(fd, fcntl.LOCK_UN)
-            fd.close()
+        if sys.platform == "win32":
+            # On Windows, use msvcrt locking on the lock file
+            fd = open(lock_path, "w")
+            try:
+                with _LOCK_MUTEX:
+                    msvcrt.locking(fd.fileno(), _LOCK_EX, 1)
+                yield
+            finally:
+                try:
+                    with _LOCK_MUTEX:
+                        msvcrt.locking(fd.fileno(), _LOCK_UN, 1)
+                except (OSError, IOError):
+                    pass
+                fd.close()
+        else:
+            fd = open(lock_path, "w")
+            try:
+                fcntl.flock(fd, _LOCK_EX)
+                yield
+            finally:
+                fcntl.flock(fd, _LOCK_UN)
+                fd.close()
 
     @staticmethod
     def _path_for(target: str) -> Path:

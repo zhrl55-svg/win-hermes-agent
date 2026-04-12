@@ -2,14 +2,17 @@
   <img src="assets/banner.png" alt="Hermes Agent" width="100%">
 </p>
 
-# Hermes Agent ☤
+# Hermes Agent ☤ — Windows Branch
 
 <p align="center">
   <a href="https://hermes-agent.nousresearch.com/docs/"><img src="https://img.shields.io/badge/Docs-hermes--agent.nousresearch.com-FFD700?style=for-the-badge" alt="Documentation"></a>
   <a href="https://discord.gg/NousResearch"><img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
   <a href="https://github.com/NousResearch/hermes-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License: MIT"></a>
   <a href="https://nousresearch.com"><img src="https://img.shields.io/badge/Built%20by-Nous%20Research-blueviolet?style=for-the-badge" alt="Built by Nous Research"></a>
+  <a href="https://github.com/win-hermes/win-hermes"><img src="https://img.shields.io/badge/Windows-Branch-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows Branch"></a>
 </p>
+
+> **这是 Hermes Agent 的 Windows 原生适配分支**。所有代码针对 Windows 环境进行了专项优化，可在 Windows PowerShell / CMD 下直接运行，无需 WSL、WSL2 或虚拟机。
 
 **The self-improving AI agent built by [Nous Research](https://nousresearch.com).** It's the only agent with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on a $5 VPS, a GPU cluster, or serverless infrastructure that costs nearly nothing when idle. It's not tied to your laptop — talk to it from Telegram while it works on a cloud VM.
 
@@ -23,46 +26,138 @@ Use any model you want — [Nous Portal](https://portal.nousresearch.com), [Open
 <tr><td><b>Delegates and parallelizes</b></td><td>Spawn isolated subagents for parallel workstreams. Write Python scripts that call tools via RPC, collapsing multi-step pipelines into zero-context-cost turns.</td></tr>
 <tr><td><b>Runs anywhere, not just your laptop</b></td><td>Six terminal backends — local, Docker, SSH, Daytona, Singularity, and Modal. Daytona and Modal offer serverless persistence — your agent's environment hibernates when idle and wakes on demand, costing nearly nothing between sessions. Run it on a $5 VPS or a GPU cluster.</td></tr>
 <tr><td><b>Research-ready</b></td><td>Batch trajectory generation, Atropos RL environments, trajectory compression for training the next generation of tool-calling models.</td></tr>
+<tr><td><b>Windows-native</b></td><td>Optimized for native Windows execution via Git Bash. No WSL, no虚拟机, no额外配置 required.</td></tr>
 </table>
+
+---
+
+## Prerequisites
+
+- **Python 3.11+** — [下载链接](https://www.python.org/downloads/)
+- **Git for Windows (Git Bash)** — [下载链接](https://git-scm.com/download/win)
+
+> Git Bash 是 Windows 下的 POSIX 兼容层，Hermes Agent 的终端执行（terminal tool）依赖 Git Bash 环境。安装时请确保勾选 **"Git Bash"** 和 **"Use Git from the Windows Command Prompt"**。
+
+> **浏览器自动化（可选）：** `agent-browser` 技能需要 Playwright 浏览器支持。初次使用前运行一次：
+> ```powershell
+> npx playwright install chromium
+> ```
+> 浏览器二进制文件会自动下载到 `~/.cache/ms-playwright/`，无需 Visual Studio。
 
 ---
 
 ## Quick Install
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+### 方式一：双击运行（推荐）
+
+```powershell
+# 1. 克隆项目
+git clone https://github.com/win-hermes/win-hermes.git
+cd win-hermes
+
+# 2. 安装依赖（使用系统 Python）
+pip install -e ".[all,pty,cron,messaging,mcp,cli]"
+
+# 3. 双击运行（或命令行运行）
+run-hermes.bat
 ```
 
-Works on Linux, macOS, WSL2, and Android via Termux. The installer handles the platform-specific setup for you.
+### 方式二：命令行安装
 
-> **Android / Termux:** The tested manual path is documented in the [Termux guide](https://hermes-agent.nousresearch.com/docs/getting-started/termux). On Termux, Hermes installs a curated `.[termux]` extra because the full `.[all]` extra currently pulls Android-incompatible voice dependencies.
->
-> **Windows:** Native Windows is not supported. Please install [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install) and run the command above.
+```powershell
+# 克隆
+git clone https://github.com/win-hermes/win-hermes.git
+cd win-hermes
 
-After installation:
+# 安装依赖
+pip install -e ".[all,pty,cron,messaging,mcp,cli]"
 
-```bash
-source ~/.bashrc    # reload shell (or: source ~/.zshrc)
-hermes              # start chatting!
+# 启动交互式聊天
+python -m hermes_cli.main chat
+
+# 或使用启动脚本
+.\run-hermes.bat chat
+```
+
+### 方式三：开发者模式安装
+
+```powershell
+# 克隆
+git clone https://github.com/win-hermes/win-hermes.git
+cd win-hermes
+
+# 创建虚拟环境（可选）
+python -m venv venv
+.\venv\Scripts\activate
+
+# 安装所有依赖
+pip install -e ".[all,pty,cron,messaging,mcp,cli]"
+
+# 运行测试
+python -m pytest tests/ -q
+```
+
+### 方式四：从 NousResearch 原版迁移
+
+如果你已经在 Linux/macOS/WSL 上使用 Hermes Agent，只需将项目替换为 Windows 分支：
+
+```powershell
+# 重新克隆 Windows 分支
+git remote set-url origin https://github.com/win-hermes/win-hermes.git
+git pull
+
+# 重新安装依赖（Windows 环境下）
+pip install -e ".[all,pty,cron,messaging,mcp,cli]"
+```
+
+> 注意：所有 `~/.hermes/` 配置、记忆文件、API Keys 均可在 Windows 上直接复用（位于 `%USERPROFILE%\.hermes`）。
+
+---
+
+## After Installation
+
+**双击运行：**
+```
+双击 run-hermes.bat  # 直接启动交互式聊天
+```
+
+**命令行运行：**
+```powershell
+# 交互式聊天
+run-hermes.bat chat
+
+# 选择模型和 Provider
+run-hermes.bat model
+
+# 诊断检查
+run-hermes.bat doctor
+
+# 启动消息网关（Telegram / Discord 等）
+run-hermes.bat gateway
+
+# 完整配置向导
+run-hermes.bat setup
+
+# 迁移 OpenClaw（如需要）
+run-hermes.bat claw migrate
 ```
 
 ---
 
 ## Getting Started
 
-```bash
-hermes              # Interactive CLI — start a conversation
-hermes model        # Choose your LLM provider and model
-hermes tools        # Configure which tools are enabled
-hermes config set   # Set individual config values
-hermes gateway      # Start the messaging gateway (Telegram, Discord, etc.)
-hermes setup        # Run the full setup wizard (configures everything at once)
-hermes claw migrate # Migrate from OpenClaw (if coming from OpenClaw)
-hermes update       # Update to the latest version
-hermes doctor       # Diagnose any issues
+```powershell
+run-hermes.bat chat              # 交互式 CLI — 开始对话
+run-hermes.bat model             # 选择 LLM provider 和模型
+run-hermes.bat tools             # 配置启用的工具集
+run-hermes.bat config set        # 设置单项配置值
+run-hermes.bat gateway            # 启动消息网关（Telegram, Discord 等）
+run-hermes.bat setup             # 运行完整配置向导
+run-hermes.bat claw migrate       # 从 OpenClaw 迁移（如果需要）
+run-hermes.bat doctor             # 诊断检查问题
 ```
 
-📖 **[Full documentation →](https://hermes-agent.nousresearch.com/docs/)**
+📖 **[完整文档 →](https://hermes-agent.nousresearch.com/docs/)**
 
 ## CLI vs Messaging Quick Reference
 
@@ -70,7 +165,7 @@ Hermes has two entry points: start the terminal UI with `hermes`, or run the gat
 
 | Action | CLI | Messaging platforms |
 |---------|-----|---------------------|
-| Start chatting | `hermes` | Run `hermes gateway setup` + `hermes gateway start`, then send the bot a message |
+| Start chatting | `hermes` / `run-hermes.bat chat` | Run `hermes gateway setup` + `hermes gateway start`, then send the bot a message |
 | Start fresh conversation | `/new` or `/reset` | `/new` or `/reset` |
 | Change model | `/model [provider:model]` | `/model [provider:model]` |
 | Set a personality | `/personality [name]` | `/personality [name]` |
@@ -116,11 +211,11 @@ If you're coming from OpenClaw, Hermes can automatically import your settings, m
 
 **Anytime after install:**
 
-```bash
-hermes claw migrate              # Interactive migration (full preset)
-hermes claw migrate --dry-run    # Preview what would be migrated
-hermes claw migrate --preset user-data   # Migrate without secrets
-hermes claw migrate --overwrite  # Overwrite existing conflicts
+```powershell
+run-hermes.bat claw migrate              # Interactive migration (full preset)
+run-hermes.bat claw migrate --dry-run    # Preview what would be migrated
+run-hermes.bat claw migrate --preset user-data   # Migrate without secrets
+run-hermes.bat claw migrate --overwrite  # Overwrite existing conflicts
 ```
 
 What gets imported:
@@ -141,23 +236,23 @@ See `hermes claw migrate --help` for all options, or use the `openclaw-migration
 
 We welcome contributions! See the [Contributing Guide](https://hermes-agent.nousresearch.com/docs/developer-guide/contributing) for development setup, code style, and PR process.
 
-Quick start for contributors:
+Quick start for contributors (Windows):
 
-```bash
-git clone https://github.com/NousResearch/hermes-agent.git
-cd hermes-agent
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv venv venv --python 3.11
-source venv/bin/activate
-uv pip install -e ".[all,dev]"
+```powershell
+# Clone the repo
+git clone https://github.com/win-hermes/win-hermes.git
+cd win-hermes
+
+# Create virtual environment
+python -m venv venv
+.\venv\Scripts\activate
+
+# Install dependencies
+pip install -e ".[all,pty,cron,messaging,mcp,cli]"
+
+# Run tests
 python -m pytest tests/ -q
 ```
-
-> **RL Training (optional):** To work on the RL/Tinker-Atropos integration:
-> ```bash
-> git submodule update --init tinker-atropos
-> uv pip install -e "./tinker-atropos"
-> ```
 
 ---
 
@@ -165,8 +260,8 @@ python -m pytest tests/ -q
 
 - 💬 [Discord](https://discord.gg/NousResearch)
 - 📚 [Skills Hub](https://agentskills.io)
-- 🐛 [Issues](https://github.com/NousResearch/hermes-agent/issues)
-- 💡 [Discussions](https://github.com/NousResearch/hermes-agent/discussions)
+- 🐛 [Issues](https://github.com/win-hermes/win-hermes/issues)
+- 💡 [Discussions](https://github.com/win-hermes/win-hermes/discussions)
 
 ---
 

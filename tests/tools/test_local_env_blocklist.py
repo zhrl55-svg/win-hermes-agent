@@ -10,6 +10,7 @@ See: https://github.com/NousResearch/hermes-agent/issues/1264
 
 import os
 import threading
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from tools.environments.local import (
@@ -294,28 +295,75 @@ class TestSanePathIncludesHomebrew:
     """Verify _SANE_PATH includes macOS Homebrew directories."""
 
     def test_sane_path_includes_homebrew_bin(self):
-        from tools.environments.local import _SANE_PATH
-        assert "/opt/homebrew/bin" in _SANE_PATH
+        from tools.environments.local import _IS_WINDOWS, _SANE_PATH
+        if _IS_WINDOWS:
+            assert r"C:\Windows" in _SANE_PATH
+        else:
+            assert "/opt/homebrew/bin" in _SANE_PATH
 
     def test_sane_path_includes_homebrew_sbin(self):
-        from tools.environments.local import _SANE_PATH
-        assert "/opt/homebrew/sbin" in _SANE_PATH
+        from tools.environments.local import _IS_WINDOWS, _SANE_PATH
+        if _IS_WINDOWS:
+            assert r"C:\Windows\System32" in _SANE_PATH
+        else:
+            assert "/opt/homebrew/sbin" in _SANE_PATH
 
     def test_make_run_env_appends_homebrew_on_minimal_path(self):
         """When PATH is minimal (no /usr/bin), _make_run_env should append
         _SANE_PATH which now includes Homebrew dirs."""
-        from tools.environments.local import _make_run_env
+        from tools.environments.local import _IS_WINDOWS, _make_run_env
         minimal_env = {"PATH": "/some/custom/bin"}
         with patch.dict(os.environ, minimal_env, clear=True):
             result = _make_run_env({})
-        assert "/opt/homebrew/bin" in result["PATH"]
-        assert "/opt/homebrew/sbin" in result["PATH"]
+        if _IS_WINDOWS:
+            assert result["PATH"].startswith("/some/custom/bin;")
+            assert r"C:\Windows" in result["PATH"]
+        else:
+            assert "/opt/homebrew/bin" in result["PATH"]
+            assert "/opt/homebrew/sbin" in result["PATH"]
 
     def test_make_run_env_does_not_duplicate_on_full_path(self):
         """When PATH already has /usr/bin, _make_run_env should not append."""
-        from tools.environments.local import _make_run_env
+        from tools.environments.local import _IS_WINDOWS, _make_run_env
         full_env = {"PATH": "/usr/bin:/bin"}
         with patch.dict(os.environ, full_env, clear=True):
             result = _make_run_env({})
-        # Should keep existing PATH unchanged
-        assert result["PATH"] == "/usr/bin:/bin"
+        if _IS_WINDOWS:
+            assert result["PATH"].startswith("/usr/bin:/bin;")
+            assert result["PATH"].split(";").count(r"C:\Windows") == 1
+        else:
+            assert result["PATH"] == "/usr/bin:/bin"
+
+
+class TestWindowsSanePath:
+    """Verify Windows PATH helpers stay portable and avoid duplication."""
+
+    def test_windows_sane_path_source_has_no_hardcoded_user_home(self):
+        source = Path("tools/environments/local.py").read_text(encoding="utf-8")
+        assert r"C:\Users\zhrl5" not in source
+
+    def test_windows_sane_path_includes_current_python_dir(self):
+        import sys
+        from tools.environments.local import _SANE_PATH_WINDOWS
+
+        assert str(Path(sys.executable).resolve().parent) in _SANE_PATH_WINDOWS
+
+    def test_make_run_env_does_not_duplicate_existing_windows_entries(self):
+        from tools.environments.local import _make_run_env
+
+        with patch("tools.environments.local._IS_WINDOWS", True), \
+             patch.dict(os.environ, {"PATH": r"C:\Windows;C:\Tools"}, clear=True):
+            result = _make_run_env({})
+
+        assert result["PATH"].startswith(r"C:\Windows;C:\Tools")
+        assert result["PATH"].split(";").count(r"C:\Windows") == 1
+
+    def test_make_run_env_appends_missing_windows_entries(self):
+        from tools.environments.local import _make_run_env
+
+        with patch("tools.environments.local._IS_WINDOWS", True), \
+             patch.dict(os.environ, {"PATH": r"C:\Custom\Bin"}, clear=True):
+            result = _make_run_env({})
+
+        assert result["PATH"].startswith(r"C:\Custom\Bin;")
+        assert r"C:\Windows" in result["PATH"]
