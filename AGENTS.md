@@ -563,10 +563,11 @@ Built-in `web_search` is disabled in this workspace. Do not ask for or rely on t
 When you need live web information:
 - If you already have a specific URL, use `web_fetch`.
 - If you need search discovery, dynamic pages, or interactive browsing, use the built-in `browser` tool.
+- For headless browser automation with CLI-based accessibility tree snapshots, use the `agent-browser` skill (see `~/.hermes/skills/agent-browser/SKILL.md`).
 - Only use the LobsterAI `web-search` skill when local command execution is available. Native channel sessions may deny `exec`, so prefer `browser` or `web_fetch` there.
 - Exception: the `imap-smtp-email` skill must always use `exec` to run its scripts, even in native channel sessions. Do not skip it because of exec restrictions.
 
-Do not claim you searched the web unless you actually used `browser`, `web_fetch`, or the LobsterAI `web-search` skill.
+**Note on browser tools:** The built-in `browser` tool and `agent-browser` skill are designed for headless environments (no GUI). On Windows, these tools run without a visual browser window. Use screenshots only for debugging if needed.
 
 ## Command Execution & User Interaction Policy
 
