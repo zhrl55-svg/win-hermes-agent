@@ -91,23 +91,32 @@ hermes-agent/
 - **Tool call display** — show when agent uses tools
 - **Streaming responses** — typewriter effect for agent replies
 - **Session history** — persistent chat threads
+- **"/" command shortcuts** — type "/" in input to show command palette with all slash commands (auto-complete, navigation)
+- **Model selector** — top bar displays current model, click to switch from available models list
 
 #### UI Layout
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  Hermes Web UI                    [Sessions▾] [Settings⚙] │
-├──────────────┬────────────────────────────────────────────┤
-│              │  ┌────────────────────────────────────┐   │
-│  Sessions    │  │  Welcome to Hermes Agent            │   │
-│  ─────────   │  │  Ask me anything...                 │   │
-│  ▶ Session 1 │  │                                    │   │
-│  ▶ Session 2 │  └────────────────────────────────────┘   │
-│  ▶ Session 3 │                                            │
-│              │  ┌────────────────────────────────────┐   │
-│  + New Chat  │  │ Type your message...          [Send]│   │
-│              │  └────────────────────────────────────┘   │
-└──────────────┴────────────────────────────────────────────┘
+│  Hermes        [Model: claude-3.5-sonnet ▾] [Sessions▾] [⚙] │
+├────────────────────────────────────────────────────────────┤
+│                                                            │
+│  ┌────────────────────────────────────────────────────┐   │
+│  │ Welcome to Hermes Agent          [New Chat]         │   │
+│  │ Ask me anything...                                   │   │
+│  └────────────────────────────────────────────────────┘   │
+│                                                            │
+│  ┌────────────────────────────────────────────────────┐   │
+│  │ Type "/" for commands...                       [Send]│   │
+│  └────────────────────────────────────────────────────┘   │
+└────────────────────────────────────────────────────────────┘
 ```
+
+#### "/" Command Palette
+When user types "/" in the input box, show a floating palette with:
+- All available slash commands (filtered as user types)
+- Command description
+- Keyboard navigation (↑↓ to select, Enter to execute, Esc to close)
+- Commands: /new, /model, /skills, /memory, /compress, /help, etc.
 
 #### API Endpoints
 ```
