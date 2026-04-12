@@ -42,11 +42,18 @@ Usage:
 
     hermes claw migrate --dry-run  # Preview migration without changes
 """
-
+# === WINDOWS COMPATIBILITY PATCH (auto-inserted) ===
+import platform
+if platform.system() == "Windows":
+    from hermes_cli.platform_compat import enable_virtual_terminal, setup_windows_env
+    enable_virtual_terminal()  # Enable ANSI colors
+    setup_windows_env()        # Configure UTF-8, long paths
+# === END PATCH ===
 import argparse
 import os
 import subprocess
 import sys
+from hermes_cli.platform_compat import safe_path
 from pathlib import Path
 from typing import Optional
 

@@ -49,3 +49,16 @@ class TestLocalTempDir:
             assert env.get_temp_dir() == "/cache/tmp"
             assert env._snapshot_path == f"/cache/tmp/hermes-snap-{env._session_id}.sh"
             assert env._cwd_file == f"/cache/tmp/hermes-cwd-{env._session_id}.txt"
+
+    def test_windows_temp_env_is_normalized_for_shell_safe_paths(self, monkeypatch):
+        monkeypatch.delenv("TMPDIR", raising=False)
+        monkeypatch.delenv("TMP", raising=False)
+        monkeypatch.setenv("TEMP", r"C:\Users\demo\AppData\Local\Temp\\")
+
+        with patch("tools.environments.local._IS_WINDOWS", True), \
+             patch.object(LocalEnvironment, "init_session", autospec=True, return_value=None):
+            env = LocalEnvironment(cwd=".", timeout=10)
+
+        assert env.get_temp_dir() == "C:/Users/demo/AppData/Local/Temp"
+        assert env._snapshot_path == f"C:/Users/demo/AppData/Local/Temp/hermes-snap-{env._session_id}.sh"
+        assert env._cwd_file == f"C:/Users/demo/AppData/Local/Temp/hermes-cwd-{env._session_id}.txt"

@@ -1,11 +1,14 @@
 """Local execution environment — spawn-per-call with session snapshot."""
 
 import os
+import ntpath
 import platform
 import shutil
 import signal
 import subprocess
+import sys
 import tempfile
+from pathlib import Path
 
 from tools.environments.base import BaseEnvironment, _pipe_stdin
 
@@ -139,7 +142,11 @@ def _sanitize_subprocess_env(base_env: dict | None, extra_env: dict | None = Non
 
 
 def _find_bash() -> str:
-    """Find bash for command execution."""
+    """Find bash for command execution.
+
+    On Windows: prefers Git Bash (not WSL bash from WindowsApps).
+    WSL bash.exe is a stub that launches WSL - not suitable for local commands.
+    """
     if not _IS_WINDOWS:
         return (
             shutil.which("bash")
@@ -153,17 +160,39 @@ def _find_bash() -> str:
     if custom and os.path.isfile(custom):
         return custom
 
-    found = shutil.which("bash")
-    if found:
-        return found
+    # Check Git Bash explicitly before using shutil.which("bash")
+    # (shutil.which may return WSL bash from WindowsApps)
+    # Also search all drive letters for portability
+    def _add_drive(path, drive_letter):
+        """Replace C: with the given drive letter."""
+        if path.startswith("C:\\"):
+            return drive_letter + path[2:]
+        return path
 
-    for candidate in (
+    git_bash_paths = [
         os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "Git", "bin", "bash.exe"),
         os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"), "Git", "bin", "bash.exe"),
         os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Git", "bin", "bash.exe"),
-    ):
+        os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "Git", "bash.exe"),
+        os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "Git", "usr", "bin", "bash.exe"),
+        r"C:\Program Files\Git\bin\bash.exe",
+        r"C:\Program Files (x86)\Git\bin\bash.exe",
+        r"C:\Program Files\Git\usr\bin\bash.exe",
+        # D: drive (common alternative install location)
+        os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files").replace("C:", "D:"), "Git", "bin", "bash.exe"),
+        os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files").replace("C:", "D:"), "Git", "usr", "bin", "bash.exe"),
+        r"D:\Program Files\Git\bin\bash.exe",
+        r"D:\Program Files\Git\usr\bin\bash.exe",
+        r"D:\Program Files (x86)\Git\bin\bash.exe",
+    ]
+    for candidate in git_bash_paths:
         if candidate and os.path.isfile(candidate):
             return candidate
+
+    # Fall back to shutil.which, but skip WSL bash (WindowsApps stub)
+    found = shutil.which("bash")
+    if found and "WindowsApps" not in found:
+        return found
 
     raise RuntimeError(
         "Git Bash not found. Hermes Agent requires Git for Windows on Windows.\n"
@@ -176,11 +205,78 @@ def _find_bash() -> str:
 _find_shell = _find_bash
 
 
+def _normalize_windows_path(path: str) -> str:
+    """Normalize a Windows path for reuse in both Python and Git Bash."""
+    normalized = (path or "").strip().rstrip("\\/")
+    if not normalized:
+        return normalized
+    return normalized.replace("\\", "/")
+
+
+def _build_sane_windows_path_entries() -> list[str]:
+    """Return fallback PATH entries suitable for Windows local execution."""
+    entries = [
+        r"C:\Windows",
+        r"C:\Windows\System32",
+        r"C:\Windows\System32\WindowsPowerShell\v1.0",
+        r"C:\Program Files\Git\bin",
+        r"C:\Program Files\Git\usr\bin",
+        r"C:\Program Files (x86)\Git\bin",
+        r"D:\Program Files\Git\bin",
+        r"D:\Program Files\Git\usr\bin",
+        r"D:\Program Files (x86)\Git\bin",
+    ]
+
+    local_appdata = os.environ.get("LOCALAPPDATA", "")
+    if local_appdata:
+        entries.append(os.path.join(local_appdata, "Microsoft", "WindowsApps"))
+
+    python_dir = str(Path(sys.executable).resolve().parent)
+    if python_dir:
+        entries.append(python_dir)
+        entries.append(os.path.join(python_dir, "Scripts"))
+
+    # Preserve order while dropping empty or duplicate entries.
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for entry in entries:
+        cleaned = entry.strip()
+        if not cleaned:
+            continue
+        key = ntpath.normcase(ntpath.normpath(cleaned))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(cleaned)
+    return deduped
+
+
+def _merge_windows_path(existing_path: str) -> str:
+    """Append missing fallback PATH entries without duplicating existing ones."""
+    path_parts = [part.strip() for part in existing_path.split(";") if part.strip()]
+    seen = {
+        ntpath.normcase(ntpath.normpath(part))
+        for part in path_parts
+    }
+    merged = list(path_parts)
+    for candidate in _SANE_PATH_WINDOWS_ENTRIES:
+        key = ntpath.normcase(ntpath.normpath(candidate))
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(candidate)
+    return ";".join(merged)
+
+
 # Standard PATH entries for environments with minimal PATH.
-_SANE_PATH = (
+# Unix paths are meaningless on Windows (bash is found via _find_bash).
+_SANE_PATH_UNIX = (
     "/opt/homebrew/bin:/opt/homebrew/sbin:"
     "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 )
+_SANE_PATH_WINDOWS_ENTRIES = _build_sane_windows_path_entries()
+_SANE_PATH_WINDOWS = ";".join(_SANE_PATH_WINDOWS_ENTRIES)
+_SANE_PATH = _SANE_PATH_WINDOWS if _IS_WINDOWS else _SANE_PATH_UNIX
 
 
 def _make_run_env(env: dict) -> dict:
@@ -199,8 +295,12 @@ def _make_run_env(env: dict) -> dict:
         elif k not in _HERMES_PROVIDER_ENV_BLOCKLIST or _is_passthrough(k):
             run_env[k] = v
     existing_path = run_env.get("PATH", "")
-    if "/usr/bin" not in existing_path.split(":"):
-        run_env["PATH"] = f"{existing_path}:{_SANE_PATH}" if existing_path else _SANE_PATH
+    if _IS_WINDOWS:
+        run_env["PATH"] = _merge_windows_path(existing_path)
+    else:
+        # Unix: split by ':', check for '/usr/bin'
+        if "/usr/bin" not in existing_path.split(":"):
+            run_env["PATH"] = f"{existing_path}:{_SANE_PATH}" if existing_path else _SANE_PATH
 
     # Per-profile HOME isolation: redirect system tool configs (git, ssh, gh,
     # npm …) into {HERMES_HOME}/home/ when that directory exists.  Only the
@@ -239,8 +339,11 @@ class LocalEnvironment(BaseEnvironment):
         """
         for env_var in ("TMPDIR", "TMP", "TEMP"):
             candidate = self.env.get(env_var) or os.environ.get(env_var)
-            if candidate and candidate.startswith("/"):
-                return candidate.rstrip("/") or "/"
+            if candidate:
+                if candidate.startswith("/"):
+                    return candidate.rstrip("/") or "/"
+                if _IS_WINDOWS and ntpath.isabs(candidate):
+                    return _normalize_windows_path(candidate)
 
         if os.path.isdir("/tmp") and os.access("/tmp", os.W_OK | os.X_OK):
             return "/tmp"
@@ -249,6 +352,8 @@ class LocalEnvironment(BaseEnvironment):
         if candidate.startswith("/"):
             return candidate.rstrip("/") or "/"
 
+        if _IS_WINDOWS:
+            return _normalize_windows_path(candidate)
         return "/tmp"
 
     def _run_bash(self, cmd_string: str, *, login: bool = False,
