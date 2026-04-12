@@ -27,6 +27,7 @@ Use any model you want — [Nous Portal](https://portal.nousresearch.com), [Open
 <tr><td><b>Runs anywhere, not just your laptop</b></td><td>Six terminal backends — local, Docker, SSH, Daytona, Singularity, and Modal. Daytona and Modal offer serverless persistence — your agent's environment hibernates when idle and wakes on demand, costing nearly nothing between sessions. Run it on a $5 VPS or a GPU cluster.</td></tr>
 <tr><td><b>Research-ready</b></td><td>Batch trajectory generation, Atropos RL environments, trajectory compression for training the next generation of tool-calling models.</td></tr>
 <tr><td><b>Windows-native</b></td><td>Optimized for native Windows execution via Git Bash. No WSL, no虚拟机, no额外配置 required.</td></tr>
+<tr><td><b>Browser Automation</b></td><td>Headless browser automation via <code>agent-browser</code> CLI skill — accessibility tree snapshots with ref-based element selection, session isolation, state persistence. Works on Windows without GUI. 安装：<code>npm install -g agent-browser</code>，首次使用前运行 <code>npx playwright install chromium</code>。</td></tr>
 </table>
 
 ---
@@ -38,11 +39,12 @@ Use any model you want — [Nous Portal](https://portal.nousresearch.com), [Open
 
 > Git Bash 是 Windows 下的 POSIX 兼容层，Hermes Agent 的终端执行（terminal tool）依赖 Git Bash 环境。安装时请确保勾选 **"Git Bash"** 和 **"Use Git from the Windows Command Prompt"**。
 
-> **浏览器自动化（可选）：** `agent-browser` 技能需要 Playwright 浏览器支持。初次使用前运行一次：
+> **浏览器自动化（可选）：** 内置 `browser` 工具支持无头浏览器操作。如需更高级的 CLI 驱动自动化（含可访问性树快照和基于 ref 的确定性元素选择），可安装 `agent-browser` 技能：
 > ```powershell
+> npm install -g agent-browser
 > npx playwright install chromium
 > ```
-> 浏览器二进制文件会自动下载到 `~/.cache/ms-playwright/`，无需 Visual Studio。
+> `agent-browser` 在 Windows 上以 headless 模式运行，无需 GUI。浏览器二进制文件会自动下载到 `~/.cache/ms-playwright/`。
 
 ---
 
