@@ -144,8 +144,6 @@ class ProviderInfo:
 PROVIDER_TO_MODELS_DEV: Dict[str, str] = {
     "openrouter": "openrouter",
     "anthropic": "anthropic",
-    "openai": "openai",
-    "openai-codex": "openai",
     "zai": "zai",
     "kimi-coding": "kimi-for-coding",
     "minimax": "minimax",

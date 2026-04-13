@@ -727,6 +727,7 @@ def list_authenticated_providers(
     current_provider: str = "",
     user_providers: dict = None,
     custom_providers: list | None = None,
+    fallback_providers: list | None = None,
     max_models: int = 8,
 ) -> List[dict]:
     """Detect which providers have credentials and list their curated models.
@@ -958,6 +959,89 @@ def list_authenticated_providers(
             default_model = (entry.get("model") or "").strip()
             if default_model:
                 models_list.append(default_model)
+
+            # Also read models from the "models" dict (format: {model_name: {context_length, ...}})
+            models_dict = entry.get("models", {})
+            if isinstance(models_dict, dict):
+                for model_name in models_dict.keys():
+                    if model_name not in models_list:
+                        models_list.append(model_name)
+
+            results.append({
+                "slug": slug,
+                "name": display_name,
+                "is_current": slug == current_provider,
+                "is_user_defined": True,
+                "models": models_list,
+                "total_models": len(models_list),
+                "source": "user-config",
+                "api_url": api_url,
+            })
+            seen_slugs.add(slug)
+
+    # --- 5. Fallback providers from config ---
+    if fallback_providers and isinstance(fallback_providers, list):
+        for entry in fallback_providers:
+            if not isinstance(entry, dict):
+                continue
+
+            # fallback_providers format:
+            # - provider: custom
+            #   base_url: http://localhost:11434/v1
+            #   api_key: sk-...
+            #   models:
+            #   - gemma4:e4b
+            #   - glm-5.1:cloud
+            provider_name = (entry.get("provider") or "").strip()
+            if not provider_name:
+                continue
+
+            api_url = (
+                entry.get("base_url", "")
+                or entry.get("url", "")
+                or entry.get("api", "")
+                or ""
+            ).strip()
+
+            # Get display name from custom_providers if available, otherwise use provider name
+            display_name = provider_name
+            if custom_providers and isinstance(custom_providers, list):
+                for cp in custom_providers:
+                    if isinstance(cp, dict):
+                        cp_url = (cp.get("base_url", "") or cp.get("url", "") or cp.get("api", "") or "").strip()
+                        if cp_url and api_url and cp_url == api_url:
+                            cp_name = (cp.get("name") or "").strip()
+                            if cp_name:
+                                display_name = cp_name
+                            break
+
+            slug = custom_provider_slug(display_name)
+            if slug in seen_slugs:
+                continue
+
+            models_list = []
+            # Read models from the "models" list
+            models_entry = entry.get("models", [])
+            if isinstance(models_entry, list):
+                for model_name in models_entry:
+                    if model_name and model_name not in models_list:
+                        models_list.append(model_name)
+
+            # Also read from custom_providers "models" dict for additional models
+            if custom_providers and isinstance(custom_providers, list):
+                for cp in custom_providers:
+                    if isinstance(cp, dict):
+                        cp_url = (cp.get("base_url", "") or cp.get("url", "") or cp.get("api", "") or "").strip()
+                        if cp_url and api_url and cp_url == api_url:
+                            cp_models = cp.get("models", {})
+                            if isinstance(cp_models, dict):
+                                for model_name in cp_models.keys():
+                                    if model_name not in models_list:
+                                        models_list.append(model_name)
+                            break
+
+            if not models_list:
+                continue
 
             results.append({
                 "slug": slug,
