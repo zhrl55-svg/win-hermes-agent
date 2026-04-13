@@ -181,6 +181,23 @@ For the full command lists, see the [CLI guide](https://hermes-agent.nousresearc
 
 ---
 
+## Web UI
+
+Hermes Agent 附带一个可选的 Web 界面（FastAPI + React），支持浏览器登录、会话管理、模型选择。
+
+详情见 **[web_ui/README.md](web_ui/README.md)**。
+
+快速启动：
+
+```powershell
+cd web_ui
+run-web-ui.bat
+# 访问 http://localhost:5173
+# 账号：admin / admin123
+```
+
+---
+
 ## Documentation
 
 All documentation lives at **[hermes-agent.nousresearch.com/docs](https://hermes-agent.nousresearch.com/docs/)**:

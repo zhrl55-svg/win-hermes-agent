@@ -4543,16 +4543,19 @@ class HermesCLI:
                 self._close_model_picker()
                 return
             provider_data = providers[selected]
-            model_list = []
-            try:
-                from hermes_cli.models import provider_model_ids
-                live = provider_model_ids(provider_data["slug"])
-                if live:
-                    model_list = live
-            except Exception:
-                pass
+            # Use the curated models list from provider_data (pre-filtered by
+            # list_authenticated_providers to only include configured models).
+            # Only fall back to provider_model_ids if the curated list is empty
+            # (e.g. for providers without a curated list).
+            model_list = provider_data.get("models", [])
             if not model_list:
-                model_list = provider_data.get("models", [])
+                try:
+                    from hermes_cli.models import provider_model_ids
+                    live = provider_model_ids(provider_data["slug"])
+                    if live:
+                        model_list = live
+                except Exception:
+                    pass
             state["stage"] = "model"
             state["provider_data"] = provider_data
             state["model_list"] = model_list
