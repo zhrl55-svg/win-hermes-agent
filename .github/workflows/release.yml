@@ -1,0 +1,78 @@
+name: Build Windows Portable Release
+
+on:
+  push:
+    tags:
+      - "v*"   # Run when a new tag like v1.0.0 is pushed
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.0.0)"
+        required: false
+        type: string
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Create virtual environment
+        run: python -m venv venv
+
+      - name: Install Hermes Agent (from source + core extras)
+        run: |
+          .\venv\Scripts\pip.exe install --upgrade pip
+          .\venv\Scripts\pip.exe install -e ".[cron,cli,pty,mcp]"
+
+      - name: Install web-ui backend dependencies
+        run: .\venv\Scripts\pip.exe install fastapi uvicorn httpx pydantic
+
+      - name: Build web-ui frontend
+        working-directory: web-ui/frontend
+        run: npm ci --legacy-peer-deps && npm run build
+
+      - name: Remove node_modules (not needed in portable)
+        working-directory: web-ui/frontend
+        run: Remove-Item -Recurse -Force node_modules
+
+      - name: Remove venv (not included in portable)
+        run: Remove-Item -Recurse -Force venv
+
+      - name: Remove test/cache directories
+        run: |
+          Get-ChildItem -Path . -Include __pycache__ -Recurse -Directory | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+          Get-ChildItem -Path . -Filter "*.pyc" -Recurse | Remove-Item -Force -ErrorAction SilentlyContinue
+          Get-ChildItem -Path . -Filter ".git*" -Recurse -Directory | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+      - name: Build portable zip
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.inputs.tag || github.ref_name }}"
+          $version = $tag -replace '^v',''
+          $zipName = "hermes-agent-win-$version.zip"
+          Compress-Archive -Path portable,LICENSE,README.md,README_zh.md,hermes_cli,agent,gateway,tools,cron,acp_adapter,hermes_state.py,hermes_constants.py,hermes_logging.py,hermes_time.py,run_agent.py,model_tools.py,toolsets.py,batch_runner.py,trajectory_compressor.py,toolset_distributions.py,utils.py,cli.py,pyproject.toml,requirements.txt,web-ui -DestinationPath $zipName -Force
+          Write-Host "##vso[task.setvariable variable=ZIP_NAME]$zipName"
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: ${{ env.ZIP_NAME }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
