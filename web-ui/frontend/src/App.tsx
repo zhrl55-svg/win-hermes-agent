@@ -53,7 +53,7 @@ export default function App() {
       .then((data) => setMessages(data.messages))
       .catch(() => setMessages([]))
       .finally(() => setLoadingSession(false));
-  }, [sessionId]);
+  }, [sessionId, messages]);
 
   const handleNewSession = useCallback(() => {
     setLoadingSession(false);
@@ -80,6 +80,9 @@ export default function App() {
   }, [messages, sessionId, sessions]);
 
   const handleSessionCommitted = useCallback(async (nextSessionId: string, nextMessages: Message[]) => {
+    // Use event.messages directly instead of getSession to avoid a race where
+    // getSession() returns stale data while streamingContent is still visible,
+    // causing the same reply to appear twice.
     setLoadingSession(false);
     setSessionId(nextSessionId);
     setMessages(nextMessages);
