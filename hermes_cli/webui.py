@@ -256,14 +256,14 @@ def webui_start() -> None:
 
     try:
         if sys.platform == "win32":
-            CREATE_NEW_PROCESS_GROUP = 0x0020
+            CREATE_NO_WINDOW = 0x08000000
             DETACHED_PROCESS = 0x00000008
             subprocess.Popen(
                 [detected, "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000"],
                 cwd=str(BACKEND_DIR),
                 stdout=open(log_file, "a"),
                 stderr=subprocess.STDOUT,
-                creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
+                creationflags=CREATE_NO_WINDOW | DETACHED_PROCESS,
                 env=_os.environ.copy(),
             )
         else:
