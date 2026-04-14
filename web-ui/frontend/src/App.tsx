@@ -163,7 +163,12 @@ export default function App() {
           open={drawerOpen}
           onClose={() => setDrawerOpen(false)}
           width={340}
-          styles={{body: {padding: "12px 16px"}}}
+          styles={{
+            body: {
+              padding: "12px 16px",
+              background: dark ? "#0d1117" : "#f4f7fb",
+            },
+          }}
         >
           <Button
             block
@@ -184,10 +189,16 @@ export default function App() {
                   style={{
                     cursor: "pointer",
                     borderRadius: 10,
-                    background: dark ? "#161b22" : session.id === sessionId ? "#e6f4ff" : "#fff",
+                    background: dark
+                      ? session.id === sessionId ? "#1f2937" : "#161b22"
+                      : session.id === sessionId ? "#dbeafe" : "#ffffff",
                     marginBottom: 6,
                     padding: "10px 12px",
-                    border: `1px solid ${dark ? "#30363d" : session.id === sessionId ? "#91caff" : "#f0f0f0"}`,
+                    border: `1px solid ${
+                      dark
+                        ? session.id === sessionId ? "#3b82f6" : "#30363d"
+                        : session.id === sessionId ? "#3b82f6" : "#e5e7eb"
+                    }`,
                   }}
                   onClick={() => handleSelectSession(session.id)}
                   extra={
@@ -195,17 +206,27 @@ export default function App() {
                       danger
                       size="small"
                       type="text"
+                      style={{fontSize: 16, lineHeight: 1}}
                       onClick={(evt) => {
                         evt.stopPropagation();
                         void handleDeleteSession(session.id);
                       }}
                     >
-                      ×
+                      x
                     </Button>
                   }
                 >
                   <List.Item.Meta
-                    title={<Text style={{fontSize: 13}}>{session.title || session.id}</Text>}
+                    title={
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          color: dark ? (session.id === sessionId ? "#93c5fd" : "#e5e7eb") : (session.id === sessionId ? "#1d4ed8" : "#374151"),
+                        }}
+                      >
+                        {session.title || session.id}
+                      </Text>
+                    }
                     description={
                       <Text type="secondary" style={{fontSize: 11}}>
                         {session.message_count} msgs · {formatTimestamp(session.last_active)}

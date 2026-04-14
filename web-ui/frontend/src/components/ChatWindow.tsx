@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {Button, Input, Select, Typography, message} from "antd";
-import {PauseCircleOutlined, SendOutlined, ToolOutlined} from "@ant-design/icons";
+import {PauseCircleOutlined, SendOutlined, ToolOutlined, CopyOutlined} from "@ant-design/icons";
 import type {ChatEvent, Message, RuntimeInfo} from "../api/chat";
 import {createChatStream, interruptSession} from "../api/chat";
 
@@ -24,34 +24,53 @@ function isGitMergeOutput(content: string): boolean {
   );
 }
 
-// True when the content looks like TypeScript / JavaScript source code.
-// Catches: i18n files, types, interfaces, import/export statements.
 function isTsSourceCode(content: string): boolean {
   const lines = content.split("\n");
   if (lines.length < 3) return false;
 
-  // Strong indicators of TS/TSX source: import type, export const/type/interface,
-  // "interface " declarations, "type {" patterns, .ts/.tsx file references in comments
   const sourceIndicators = [
-    /^import type \{ .+ \} from ['"]\.\//m,        // import type { X } from "./"
-    /^export (const|function|type|interface|class) /m, // export const / type / interface
-    /: Translations = \{/m,                           // i18n type assignment
-    /interface \w+ \{/m,                              // TypeScript interface
-    /type \w+ = \{/m,                                 // type X = {
-    /^\s*import \{[^}]+\} from ['"][^'"]+['"];?$/m,  // named imports
-    /^\s*export default \w+/m,                        // export default
-    /^\s*\/\/\s*!.+\.(ts|tsx)\s*$/m,                 // reference path comment
+    /^import type \{ .+ \} from ['"]\.\//m,
+    /^export (const|function|type|interface|class) /m,
+    /: Translations = \{/m,
+    /interface \w+ \{/m,
+    /type \w+ = \{/m,
+    /^\s*import \{[^}]+\} from ['"][^'"]+['"];?$/m,
+    /^\s*export default \w+/m,
+    /^\s*\/\/\s*!.+\.(ts|tsx)\s*$/m,
   ];
 
   const score = sourceIndicators.reduce((acc, re) => acc + (re.test(content) ? 1 : 0), 0);
-
-  // Also check line-level: high density of ": {" and balanced braces
   const braceLines = lines.filter(
-    (l) => l.includes(": {") || l.includes("};") || l.includes("},", l.length - 2),
+    (l) => l.includes(": {") || l.includes("};") || l.endsWith("},") || l.endsWith("};"),
   );
   const braceRatio = braceLines.length / lines.length;
 
   return score >= 1 || (braceRatio > 0.4 && lines.length > 10);
+}
+
+// Strip lines that are pure noise in streaming output: {........}, ------, *****, etc.
+function stripNoiseLines(text: string): string {
+  return text
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trim();
+      // Skip lines that are purely decoration: {.....}, {-----}, {*****}, etc.
+      if (
+        trimmed.startsWith("{") &&
+        trimmed.endsWith("}") &&
+        trimmed.length > 2 &&
+        /^[.\- *=_・]+$/.test(trimmed.slice(1, -1))
+      ) {
+        return false;
+      }
+      // Skip lines that are just ---- or **** or ====
+      if (/^[-*=]{3,}$/.test(trimmed)) return false;
+      // Skip JSON-like lines that are just { "key": "value" } on a single line
+      // but only if the whole content is mostly such lines
+      if (/^\{\s*"[^"]+"\s*:/.test(trimmed) && trimmed.endsWith("}")) return false;
+      return true;
+    })
+    .join("\n");
 }
 
 function shouldFilter(content: string): boolean {
@@ -72,18 +91,14 @@ function escapeHtml(str: string): string {
 function renderInline(text: string, dark: boolean): string {
   const codeBg = dark ? "#2d2d2d" : "#f0f0f0";
   const codeColor = dark ? "#e0e0e0" : "#102542";
-  // Inline code
   text = text.replace(
     /`([^`]+)`/g,
     (_m, code) =>
       `<code style="background:${codeBg};color:${codeColor};padding:1px 5px;border-radius:4px;font-size:0.88em;font-family:monospace">${escapeHtml(code)}</code>`,
   );
-  // Bold
   text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  // Italic
   text = text.replace(/\*([^*]+)\*/g, "<em>$1</em>");
   text = text.replace(/_([^_]+)_/g, "<em>$1</em>");
-  // Links
   text = text.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
     '<a href="$2" target="_blank" rel="noopener" style="color:#60a5fa">$1</a>',
@@ -118,7 +133,6 @@ function renderMarkdown(raw: string, dark = false): string {
   while (i < lines.length) {
     const line = lines[i];
 
-    // Code block fences
     if (line.trimStart().startsWith("```")) {
       if (!inCodeBlock) {
         inCodeBlock = true;
@@ -140,7 +154,6 @@ function renderMarkdown(raw: string, dark = false): string {
       continue;
     }
 
-    // Headers
     const hMatch = line.match(/^(#{1,6})\s+(.*)/);
     if (hMatch) {
       const level = hMatch[1].length;
@@ -152,7 +165,6 @@ function renderMarkdown(raw: string, dark = false): string {
       continue;
     }
 
-    // Unordered list
     const ulMatch = line.match(/^(\s*)[-*]\s+(.*)/);
     if (ulMatch) {
       const indent = ulMatch[1].length;
@@ -174,7 +186,6 @@ function renderMarkdown(raw: string, dark = false): string {
       continue;
     }
 
-    // Ordered list
     const olMatch = line.match(/^(\s*)\d+\.\s+(.*)/);
     if (olMatch) {
       const indent = olMatch[1].length;
@@ -196,7 +207,6 @@ function renderMarkdown(raw: string, dark = false): string {
       continue;
     }
 
-    // Blockquote
     const quoteMatch = line.match(/^>\s?(.*)/);
     if (quoteMatch) {
       const qColor = dark ? "#8b949e" : "#6b7280";
@@ -208,7 +218,6 @@ function renderMarkdown(raw: string, dark = false): string {
       continue;
     }
 
-    // Horizontal rule
     if (line.match(/^[-*_]{3,}\s*$/)) {
       const hrColor = dark ? "#30363d" : "#e2e8f0";
       output.push(`<hr style="border:none;border-top:1px solid ${hrColor};margin:8px 0"/>`);
@@ -216,14 +225,12 @@ function renderMarkdown(raw: string, dark = false): string {
       continue;
     }
 
-    // Empty line
     if (!line.trim()) {
       output.push("");
       i++;
       continue;
     }
 
-    // Regular paragraph
     output.push(`<p style="margin:4px 0">${renderInline(line, dark)}</p>`);
     i++;
   }
@@ -232,7 +239,7 @@ function renderMarkdown(raw: string, dark = false): string {
 }
 
 // ---------------------------------------------------------------------------
-// Message bubble
+// Message bubble with copy button
 // ---------------------------------------------------------------------------
 
 interface BubbleProps {
@@ -242,15 +249,27 @@ interface BubbleProps {
 }
 
 function MessageBubble({role, content, dark}: BubbleProps) {
+  const [copied, setCopied] = useState(false);
   const userBubble = dark ? "#1d4ed8" : "#1c3f6e";
   const assistantBubble = dark ? "#161b22" : "#edf2f7";
   const userText = "#ffffff";
   const assistantText = dark ? "#e6e6e6" : "#102542";
   const border = dark ? "#30363d" : "#e2e8f0";
+  const copyBtnColor = dark ? "#9ca3af" : "#6b7280";
 
   const isUser = role === "user";
   const bg = isUser ? userBubble : assistantBubble;
   const color = isUser ? userText : assistantText;
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      message.error("Copy failed");
+    }
+  }
 
   if (isUser) {
     return (
@@ -274,18 +293,44 @@ function MessageBubble({role, content, dark}: BubbleProps) {
 
   return (
     <div style={{display: "flex", justifyContent: "flex-start"}}>
-      <div
-        style={{
-          maxWidth: "82%",
-          background: bg,
-          color,
-          borderRadius: 14,
-          padding: "10px 14px",
-          border: `1px solid ${border}`,
-          wordBreak: "break-word",
-        }}
-        dangerouslySetInnerHTML={{__html: renderMarkdown(content, dark)}}
-      />
+      <div style={{maxWidth: "82%"}}>
+        <div
+          style={{
+            background: bg,
+            color,
+            borderRadius: 14,
+            padding: "10px 14px 6px",
+            border: `1px solid ${border}`,
+            wordBreak: "break-word",
+          }}
+          dangerouslySetInnerHTML={{__html: renderMarkdown(content, dark)}}
+        />
+        {/* Copy button row */}
+        <div style={{display: "flex", justifyContent: "flex-end", marginTop: 2, padding: "0 4px"}}>
+          <button
+            onClick={handleCopy}
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: copyBtnColor,
+              fontSize: 12,
+              padding: "2px 6px",
+              borderRadius: 6,
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+            }}
+          >
+            {copied ? (
+              <span style={{color: "#22c55e"}}>[OK]</span>
+            ) : (
+              <CopyOutlined style={{fontSize: 12}} />
+            )}
+            <span style={{fontSize: 11}}>{copied ? "Copied" : "Copy"}</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -412,14 +457,17 @@ export default function ChatWindow({
 
   const visibleMessages = useMemo(() => {
     if (!streamingContent) return localMessages;
-    if (shouldFilter(streamingContent)) return localMessages;
-    return [...localMessages, {role: "assistant" as const, content: streamingContent}];
+    const cleaned = stripNoiseLines(streamingContent);
+    if (shouldFilter(cleaned)) return localMessages;
+    return [...localMessages, {role: "assistant" as const, content: cleaned}];
   }, [localMessages, streamingContent]);
 
   const handleEvent = useCallback(
     (event: ChatEvent) => {
       if (event.type === "chunk") {
-        setStreamingContent((prev) => prev + event.content);
+        // Strip noise lines (e.g. {........}) before appending to streaming content
+        const cleaned = stripNoiseLines(event.content);
+        setStreamingContent((prev) => prev + cleaned);
       } else if (event.type === "done") {
         setStreaming(false);
         setStreamingContent("");
@@ -490,6 +538,9 @@ export default function ChatWindow({
   const surface = dark ? "#161b22" : "#ffffff";
   const border = dark ? "#30363d" : "#e2e8f0";
   const muted = dark ? "#8b949e" : "#64748b";
+
+  // TextArea minRows:2 ≈ 56px; set same fixed height so Send button aligns exactly
+  const inputRowHeight = 56;
 
   return (
     <div style={{height: "calc(100vh - 52px)", display: "flex", flexDirection: "column", padding: 0}}>
@@ -593,10 +644,15 @@ export default function ChatWindow({
                 handleSend();
               }
             }}
-            style={{flex: 1, borderRadius: 10}}
+            style={{flex: 1, borderRadius: 10, height: inputRowHeight, resize: "none"}}
           />
           {streaming ? (
-            <Button danger icon={<PauseCircleOutlined />} onClick={() => void handleStop()}>
+            <Button
+              danger
+              icon={<PauseCircleOutlined />}
+              onClick={() => void handleStop()}
+              style={{height: inputRowHeight, minWidth: 70}}
+            >
               Stop
             </Button>
           ) : (
@@ -605,6 +661,7 @@ export default function ChatWindow({
               icon={<SendOutlined />}
               onClick={handleSend}
               disabled={!draft.trim()}
+              style={{height: inputRowHeight, minWidth: 70}}
             >
               Send
             </Button>
