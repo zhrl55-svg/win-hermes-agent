@@ -1,14 +1,15 @@
-# Windows Adaptation Plan
+# Web UI Integration Plan
 
 ## Goal
-Improve Windows compatibility in runtime code paths, focusing on issues that can break local execution, subprocess handling, temp paths, or environment setup.
+Make `web-ui` function as a real web surface for Hermes CLI by sharing the same config, session state, and tool execution path with the existing Hermes runtime.
 
 ## Phases
-- [completed] Inspect Windows-sensitive code paths and existing tests
-- [completed] Implement targeted runtime fixes
-- [completed] Add or update tests for the fixes
-- [completed] Run targeted verification and summarize residual risks
+- [completed] Inspect `web-ui`, CLI/session/config integration points, and identify architectural gaps
+- [completed] Refactor backend to reuse Hermes core session/config/tool paths instead of a parallel implementation
+- [completed] Update frontend to expose the missing Hermes CLI capabilities through the shared backend
+- [completed] Run backend and frontend tests, plus integration validation
 
 ## Errors Encountered
-- `rg` PowerShell quoting failed on a complex pattern scan; switched to narrower reads and simpler searches.
-- `.\venv\Scripts\python.exe -m pytest` failed because `pytest` is not installed in that venv; verification used the available system Python instead.
+- Recursive file listing on `web-ui` timed out because `frontend/node_modules` and `dist` are present; subsequent inspection will exclude generated directories.
+- The workspace sandbox blocks some Vite child-process operations with `spawn EPERM`; `npm run build`, `npm run preview`, and `npm run dev` were validated successfully when re-run outside the restricted sandbox.
+- Port `8000` was already occupied by an older `Hermes Web UI` process during validation, so live runtime smoke tests were isolated onto port `8010`.

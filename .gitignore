@@ -58,3 +58,17 @@ mini-swe-agent/
 # Nix
 .direnv/
 result
+
+# Backend temp files
+web-ui/backend/.backend*.pid
+web-ui/backend/.test-hermes-home/
+web-ui/backend/*.err.log
+web-ui/backend/*.out.log
+web-ui/backend/backend8010.err.log
+web-ui/backend/backend8010.out.log
+web-ui/backend/backend8012.err.log
+web-ui/backend/backend8012.out.log
+
+# Frontend temp files
+web-ui/frontend/.frontend*.pid
+.minimax/

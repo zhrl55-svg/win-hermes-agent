@@ -1,350 +1,160 @@
-# Hermes Agent Web UI — Specification
+Hermes CLI Web UI 技术方案文档
+📖 目录
+项目背景
 
-## Overview
+系统架构
 
-A web-based interface for Hermes Agent combining real-time chat and administration dashboard. Built with React (frontend) + FastAPI (backend), designed for Windows-native deployment.
+技术路线
 
----
+后端封装实现
 
-## Architecture
+前端设计
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     React Frontend                          │
-│   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
-│   │ Chat Panel   │  │ Dashboard    │  │ Settings     │    │
-│   └──────────────┘  └──────────────┘  └──────────────┘    │
-└────────────────────────┬──────────────────────────────────┘
-                         │ WebSocket + REST
-┌────────────────────────┴──────────────────────────────────┐
-│                     FastAPI Backend                         │
-│   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
-│   │ Chat API     │  │ Session API  │  │ Config API   │    │
-│   └──────────────┘  └──────────────┘  └──────────────┘    │
-└────────────────────────┬──────────────────────────────────┘
-                         │ Hermes CLI / Gateway
-┌────────────────────────┴──────────────────────────────────┐
-│                  Hermes Agent Core                          │
-│   ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
-│   │ CLI Mode     │  │ Gateway API  │  │ Tool Access  │    │
-│   └──────────────┘  └──────────────┘  └──────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-```
+数据库设计
 
----
+开发步骤
 
-## Tech Stack
+部署与运维
 
-| Layer | Technology | Rationale |
-|-------|------------|-----------|
-| Frontend | React 18 + TypeScript | Type safety, component ecosystem |
-| UI Library | shadcn/ui + Tailwind CSS | Modern, accessible components |
-| State | Zustand | Lightweight, simple API |
-| Backend | FastAPI | Async, Python, native Hermes integration |
-| WebSocket | FastAPI WebSocket | Real-time chat streaming |
-| Auth | JWT tokens | Stateless, secure |
+Docker Compose 示例
 
----
+总结
+![alt text](image.png)
 
-## Directory Structure
+📌 项目背景
+Hermes CLI 提供了强大的命令行接口，但在实际使用中缺乏直观的可视化管理方式。为了提升易用性和可维护性，本项目目标是构建一个 Web UI 管理平台，通过后端封装 CLI，前端提供交互界面，实现跨平台、可扩展的 Hermes Agent 管理。
 
-```
-hermes-agent/
-├── web_ui/                    # Web UI project root
-│   ├── frontend/              # React application
-│   │   ├── src/
-│   │   │   ├── components/   # UI components
-│   │   │   │   ├── chat/     # Chat-specific components
-│   │   │   │   ├── dashboard/ # Admin dashboard components
-│   │   │   │   └── ui/       # Shared UI components
-│   │   │   ├── pages/        # Route pages
-│   │   │   ├── stores/       # Zustand state stores
-│   │   │   ├── api/          # API client functions
-│   │   │   └── lib/          # Utilities
-│   │   ├── package.json
-│   │   └── vite.config.ts
-│   ├── backend/              # FastAPI application
-│   │   ├── main.py           # FastAPI app entry
-│   │   ├── routers/          # API route modules
-│   │   │   ├── chat.py       # Chat endpoints
-│   │   │   ├── sessions.py   # Session management
-│   │   │   ├── skills.py     # Skills management
-│   │   │   ├── memory.py     # Memory/knowledge
-│   │   │   └── config.py     # Configuration
-│   │   ├── services/         # Business logic
-│   │   └── models/           # Pydantic models
-│   ├── Dockerfile
-│   └── docker-compose.yml
-├── website/                   # Existing docs site (keep)
-└── ...
-```
+🏗 系统架构
+[结果似乎无法安全显示。让我们换个方式，尝试其他内容!]
 
----
+架构说明：
 
-## Feature Specification
+Web UI 前端（React + TypeScript）通过 REST API 和 WebSocket 与后端通信。
 
-### 1. Chat Interface
+API Server（FastAPI 或 Node.js）负责命令执行、配置管理、日志与状态处理。
 
-#### Core Features
-- **Real-time messaging** via WebSocket streaming
-- **Markdown rendering** with code syntax highlighting
-- **Tool call display** — show when agent uses tools
-- **Streaming responses** — typewriter effect for agent replies
-- **Session history** — persistent chat threads
-- **"/" command shortcuts** — type "/" in input to show command palette with all slash commands (auto-complete, navigation)
-- **Model selector** — top bar displays current model, click to switch from available models list
+Hermes CLI 接收后端指令并与 Hermes Agent 交互，执行任务、返回结果与日志。
 
-#### UI Layout
-```
-┌────────────────────────────────────────────────────────────┐
-│  Hermes        [Model: claude-3.5-sonnet ▾] [Sessions▾] [⚙] │
-├────────────────────────────────────────────────────────────┤
-│                                                            │
-│  ┌────────────────────────────────────────────────────┐   │
-│  │ Welcome to Hermes Agent          [New Chat]         │   │
-│  │ Ask me anything...                                   │   │
-│  └────────────────────────────────────────────────────┘   │
-│                                                            │
-│  ┌────────────────────────────────────────────────────┐   │
-│  │ Type "/" for commands...                       [Send]│   │
-│  └────────────────────────────────────────────────────┘   │
-└────────────────────────────────────────────────────────────┘
-```
+数据库 用于存储任务与日志，实现可追踪与审计。
 
-#### "/" Command Palette
-When user types "/" in the input box, show a floating palette with:
-- All available slash commands (filtered as user types)
-- Command description
-- Keyboard navigation (↑↓ to select, Enter to execute, Esc to close)
-- Commands: /new, /model, /skills, /memory, /compress, /help, etc.
+⚙️ 技术路线
+后端
+框架：FastAPI（Python）或 Express（Node.js）
 
-#### API Endpoints
-```
-POST   /api/chat/message          # Send message (REST)
-WS     /api/chat/stream/{session} # WebSocket stream
-GET    /api/chat/history/{session}# Get chat history
-DELETE /api/chat/history/{session}# Clear session
-```
+通信协议：REST + WebSocket
 
-### 2. Management Dashboard
+安全机制：
 
-#### Sessions Panel
-- List all active/archived sessions
-- Search sessions by content
-- View session metadata (created, last active, model used)
-- Delete/archive sessions
+命令白名单
 
-#### Skills Panel
-- Browse installed skills
-- Enable/disable skills
-- View skill README/usage
-- Skill configuration
+参数校验
 
-#### Memory Panel
-- View agent memories (SOUL.md, MEMORY.md, USER.md)
-- Edit memories inline
-- Memory statistics
+JWT/OAuth2 权限控制
 
-#### Cron Jobs Panel
-- List scheduled tasks
-- View job history/logs
-- Pause/resume jobs
+前端
+框架：React + TypeScript
 
-#### Configuration Panel
-- Model selection
-- Provider configuration
-- Tool toggle per toolset
-- Display preferences
+UI 库：Ant Design
 
-### 3. Authentication
+状态管理：Redux Toolkit
 
-- **Login page** with username/password
-- **JWT tokens** stored in httpOnly cookies
-- **Role-based access** (admin vs user)
-- **Session management** in settings
+实时通信：WebSocket 日志流
 
----
+🔧 后端封装实现
+FastAPI 最小示例
+python
+from fastapi import FastAPI, WebSocket
+import subprocess, uuid
 
-## Data Models
+app = FastAPI()
+tasks = {}
 
-### Chat Message
-```typescript
-interface ChatMessage {
-  id: string;
-  session_id: string;
-  role: 'user' | 'assistant' | 'system' | 'tool';
-  content: string;
-  reasoning?: string;
-  tool_calls?: ToolCall[];
-  created_at: string;
-}
-```
+@app.post("/execute")
+def execute(command: str, args: list[str] = []):
+    task_id = str(uuid.uuid4())
+    process = subprocess.Popen(
+        ["hermes", command] + args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+    tasks[task_id] = process
+    return {"task_id": task_id, "status": "running"}
 
-### Session
-```typescript
-interface Session {
-  id: string;
-  name: string;
-  model: string;
-  created_at: string;
-  last_active_at: string;
-  message_count: number;
-  is_archived: boolean;
-}
-```
+@app.websocket("/logs/{task_id}")
+async def logs(ws: WebSocket, task_id: str):
+    await ws.accept()
+    process = tasks.get(task_id)
+    if process:
+        for line in process.stdout:
+            await ws.send_text(line)
+    await ws.close()
+🎨 前端设计
+命令执行面板：输入参数、查看结果
 
-### Skill
-```typescript
-interface Skill {
-  name: string;
-  description: string;
-  enabled: boolean;
-  category: string;
-  version: string;
-}
-```
+日志流展示：WebSocket 实时输出
 
----
+配置管理：JSON/YAML 编辑器
 
-## Backend API Design
+任务管理：启动、停止、重启
 
-### Authentication
-```
-POST /api/auth/login     # Login, returns JWT
-POST /api/auth/logout   # Clear session
-GET  /api/auth/me       # Current user info
-```
+监控面板：Agent 状态、系统资源
 
-### Chat
-```
-POST /api/chat/message
-Body: { session_id?: string, content: string }
-Response: { message_id, session_id, streaming_url }
+用户管理：登录、权限控制
 
-WS /api/chat/stream/{session_id}
-  → Server sends: { type: 'chunk'|'tool_call'|'done', data: ... }
+🗄 数据库设计
+表名	字段	说明
+tasks	task_id, command, args, status, created_at	任务记录
+logs	task_id, timestamp, stdout, stderr	日志记录
+users	user_id, role, token	用户权限
 
-GET /api/chat/history/{session_id}?limit=50&before=<cursor>
-Response: { messages: ChatMessage[], next_cursor: string | null }
+🚀 开发步骤
+原型设计（Figma）
 
-DELETE /api/chat/history/{session_id}
-Response: { success: true }
-```
+后端封装 Hermes CLI → REST API
 
-### Sessions
-```
-GET    /api/sessions          # List all sessions
-GET    /api/sessions/{id}    # Get session details
-DELETE /api/sessions/{id}    # Delete session
-POST   /api/sessions/{id}/archive   # Archive session
-```
+前端开发与日志流展示
 
-### Skills
-```
-GET    /api/skills            # List all skills
-PATCH  /api/skills/{name}    # Update skill (enable/disable/config)
-GET    /api/skills/{name}/readme   # Get skill README
-```
+集成测试与联调
 
-### Memory
-```
-GET    /api/memory            # Get all memory files
-GET    /api/memory/{type}     # Get specific memory (soul|memory|user)
-PATCH  /api/memory/{type}     # Update memory content
-```
+Docker 化部署
 
-### Cron
-```
-GET    /api/cron/jobs         # List scheduled jobs
-GET    /api/cron/jobs/{id}/history  # Job execution history
-POST   /api/cron/jobs/{id}/pause     # Pause job
-POST   /api/cron/jobs/{id}/resume    # Resume job
-```
-
-### Config
-```
-GET    /api/config            # Get current config
-PATCH  /api/config            # Update config
-GET    /api/config/models     # List available models
-```
-
----
-
-## Deployment
-
-### Windows (Development)
-```powershell
-# Start backend
-cd web_ui/backend
-python -m uvicorn main:app --reload --port 8000
-
-# Start frontend (separate terminal)
-cd web_ui/frontend
-npm run dev
-```
-
-### Docker (Production)
-```yaml
-# docker-compose.yml
+🧩 Docker Compose 示例
+yaml
+version: "3.9"
 services:
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-
   backend:
     build: ./backend
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+    command: npm start
+
+  db:
+    image: postgres:15
     environment:
-      - HERMES_HOME=C:/Users/{user}/.hermes
-```
+      POSTGRES_USER: hermes
+      POSTGRES_PASSWORD: hermes123
+      POSTGRES_DB: hermesdb
+    ports:
+      - "5432:5432"
+🧠 部署与运维
+日志审计：命令执行记录入库
 
----
+监控：Prometheus + Grafana
 
-## Implementation Phases
+扩展接口：技能管理、学习循环
 
-### Phase 1: Foundation (MVP)
-- [ ] Project scaffolding (FastAPI + React)
-- [ ] Basic authentication (login/logout)
-- [ ] Chat interface (send message, receive response)
-- [ ] Session management (create, list, switch)
+多平台支持：Windows/Linux/Mac
 
-### Phase 2: Enhanced Chat
-- [ ] WebSocket streaming
-- [ ] Tool call display
-- [ ] Markdown/code rendering
-- [ ] Chat history persistence
-
-### Phase 3: Dashboard
-- [ ] Skills management panel
-- [ ] Memory viewer/editor
-- [ ] Configuration panel
-- [ ] Cron jobs overview
-
-### Phase 4: Polish
-- [ ] Responsive design
-- [ ] Dark/light theme
-- [ ] Keyboard shortcuts
-- [ ] Notifications
-
----
-
-## Open Questions / TODOs
-
-1. **Hermes Gateway Integration**: How does the web backend communicate with Hermes CLI? Direct subprocess spawn or HTTP API?
-2. **Windows Path Handling**: Ensure all file paths work with Windows conventions
-3. **Session Persistence**: Use existing Hermes session DB or create separate web-ui session store?
-4. **Multi-user**: Support multiple simultaneous web users? Or single-user local use?
-5. **TLS/HTTPS**: Required for production deployment?
-6. **Real-time Tool Progress**: How to stream tool execution progress to frontend?
-
----
-
-## Design Inspiration
-
-- **Chat**: Linear, Claude Web, Cursor
-- **Dashboard**: Vercel Dashboard, Railway, Railway Dashboard
-- **Theme**: Dark mode default, shadcn/ui components
+✅ 总结
+本方案通过 后端封装 Hermes CLI → 前端 Web UI 管理平台 的技术路线，实现了安全、直观、可扩展的 Hermes Agent 管理工具。它不仅能满足日常操作需求，还为未来扩展（技能管理、学习循环）预留了接口。
