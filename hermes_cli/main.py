@@ -796,6 +796,26 @@ def cmd_gateway(args):
     gateway_command(args)
 
 
+def _cmd_webui(args):
+    """Web UI management."""
+    from hermes_cli.webui import (
+        webui_install,
+        webui_serve,
+        webui_start,
+        webui_stop,
+        webui_status,
+    )
+    sub = getattr(args, "webui_command", None) or "status"
+    {
+        "install": webui_install,
+        "build":   webui_install,
+        "serve":   webui_serve,
+        "start":   webui_start,
+        "stop":    webui_stop,
+        "status":  webui_status,
+    }.get(sub, webui_status)()
+
+
 def cmd_whatsapp(args):
     """Set up WhatsApp: choose mode, configure, install bridge, pair via QR."""
     _require_tty("whatsapp")
@@ -4697,6 +4717,48 @@ For more help on a command:
         description="Configure WhatsApp and pair via QR code"
     )
     whatsapp_parser.set_defaults(func=cmd_whatsapp)
+
+    # =========================================================================
+    # webui command
+    # =========================================================================
+    webui_parser = subparsers.add_parser(
+        "webui",
+        help="Web UI installation and management",
+        description="Install the React frontend and manage the web-ui backend server"
+    )
+    webui_subparsers = webui_parser.add_subparsers(dest="webui_command")
+
+    webui_install_parser = webui_subparsers.add_parser(
+        "install", help="Install npm dependencies and build the production frontend bundle"
+    )
+    webui_install_parser.set_defaults(func=_cmd_webui)
+
+    webui_build_parser = webui_subparsers.add_parser(
+        "build", help="Build the production frontend bundle (alias for install)"
+    )
+    webui_build_parser.set_defaults(func=_cmd_webui)
+
+    webui_serve_parser = webui_subparsers.add_parser(
+        "serve", help="Start the web-ui backend in foreground (Ctrl+C to stop)"
+    )
+    webui_serve_parser.set_defaults(func=_cmd_webui)
+
+    webui_start_parser = webui_subparsers.add_parser(
+        "start", help="Start the web-ui backend as a background process"
+    )
+    webui_start_parser.set_defaults(func=_cmd_webui)
+
+    webui_stop_parser = webui_subparsers.add_parser(
+        "stop", help="Stop the running web-ui backend"
+    )
+    webui_stop_parser.set_defaults(func=_cmd_webui)
+
+    webui_status_parser = webui_subparsers.add_parser(
+        "status", help="Show web-ui backend status"
+    )
+    webui_status_parser.set_defaults(func=_cmd_webui)
+
+    webui_parser.set_defaults(func=_cmd_webui)
 
     # =========================================================================
     # login command

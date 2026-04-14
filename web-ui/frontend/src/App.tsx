@@ -137,7 +137,7 @@ export default function App() {
           </div>
         </Header>
 
-        <Content style={{padding: 0, display: "flex", flexDirection: "column"}}>
+        <Content style={{padding: 0, display: "flex", flexDirection: "column", flex: 1}}>
           {loadingSession ? (
             <div style={{display: "flex", justifyContent: "center", marginTop: 80}}>
               <Spin size="large" />
