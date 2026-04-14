@@ -2,14 +2,14 @@
   <img src="assets/banner.png" alt="Hermes Agent" width="100%">
 </p>
 
-# Hermes Agent ☤ — Windows Branch
+# Hermes Agent ☤ — Windows Native Adaptation
 
 <p align="center">
   <a href="https://hermes-agent.nousresearch.com/docs/"><img src="https://img.shields.io/badge/Docs-hermes--agent.nousresearch.com-FFD700?style=for-the-badge" alt="Documentation"></a>
   <a href="https://discord.gg/NousResearch"><img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
   <a href="https://github.com/NousResearch/hermes-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License: MIT"></a>
   <a href="https://nousresearch.com"><img src="https://img.shields.io/badge/Built%20by-Nous%20Research-blueviolet?style=for-the-badge" alt="Built by Nous Research"></a>
-  <a href="https://github.com/win-hermes/win-hermes"><img src="https://img.shields.io/badge/Windows-Branch-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows Branch"></a>
+  <a href="https://github.com/zhrl55-svg/win-hermes-agent"><img src="https://img.shields.io/badge/Windows-Branch-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Windows Branch"></a>
 </p>
 
 > **This is the Windows native adaptation branch of Hermes Agent.** All code has been specially optimized for the Windows environment and can run directly under Windows PowerShell / CMD without WSL, WSL2, or virtual machines.
@@ -54,8 +54,8 @@ Use any model you want — [Nous Portal](https://portal.nousresearch.com), [Open
 
 ```powershell
 # 1. 克隆项目
-git clone https://github.com/win-hermes/win-hermes.git
-cd win-hermes
+git clone https://github.com/zhrl55-svg/win-hermes-agent.git
+cd win-hermes-agent
 
 # 2. 安装依赖（使用系统 Python）
 pip install -e ".[all,pty,cron,messaging,mcp,cli]"
@@ -68,8 +68,8 @@ run-hermes.bat
 
 ```powershell
 # 克隆
-git clone https://github.com/win-hermes/win-hermes.git
-cd win-hermes
+git clone https://github.com/zhrl55-svg/win-hermes-agent.git
+cd win-hermes-agent
 
 # 安装依赖
 pip install -e ".[all,pty,cron,messaging,mcp,cli]"
@@ -85,8 +85,8 @@ python -m hermes_cli.main chat
 
 ```powershell
 # 克隆
-git clone https://github.com/win-hermes/win-hermes.git
-cd win-hermes
+git clone https://github.com/zhrl55-svg/win-hermes-agent.git
+cd win-hermes-agent
 
 # 创建虚拟环境（可选）
 python -m venv venv
@@ -242,8 +242,8 @@ Quick start for contributors (Windows):
 
 ```powershell
 # Clone the repo
-git clone https://github.com/win-hermes/win-hermes.git
-cd win-hermes
+git clone https://github.com/zhrl55-svg/win-hermes-agent.git
+cd win-hermes-agent
 
 # Create virtual environment
 python -m venv venv
@@ -262,8 +262,48 @@ python -m pytest tests/ -q
 
 - 💬 [Discord](https://discord.gg/NousResearch)
 - 📚 [Skills Hub](https://agentskills.io)
-- 🐛 [Issues](https://github.com/win-hermes/win-hermes/issues)
-- 💡 [Discussions](https://github.com/win-hermes/win-hermes/discussions)
+- 🐛 [Issues](https://github.com/zhrl55-svg/win-hermes-agent/issues)
+- 💡 [Discussions](https://github.com/zhrl55-svg/win-hermes-agent/discussions)
+
+---
+
+## Web UI
+
+Hermes Agent 提供可选的 Web 聊天界面，基于 React + FastAPI 构建。
+
+### 启动 Web UI
+
+```powershell
+cd web-ui
+
+# 启动后端（Terminal 1）
+cd backend
+pip install -r requirements.txt
+python main.py
+
+# 启动前端（Terminal 2）
+cd frontend
+npm install
+npm run dev
+```
+
+访问 `http://localhost:5173/` 即可使用 Web 界面。
+
+### 功能特性
+
+- 实时流式聊天响应
+- 多模型选择（支持 OpenRouter、MiniMax 等）
+- 会话管理（创建、切换、重命名、删除）
+- 浅色/深色主题切换
+- 响应式设计
+
+### 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| 前端 | React + Ant Design + TypeScript + Vite |
+| 后端 | FastAPI (Python) |
+| 通信 | Server-Sent Events (SSE) 流式响应 |
 
 ---
 
