@@ -72,3 +72,5 @@ web-ui/backend/backend8012.out.log
 # Frontend temp files
 web-ui/frontend/.frontend*.pid
 .minimax/
+
+scripts/windows-release/
