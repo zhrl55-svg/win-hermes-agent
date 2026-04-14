@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {Button, Input, Select, Typography, message} from "antd";
 import {PauseCircleOutlined, SendOutlined, ToolOutlined, CopyOutlined} from "@ant-design/icons";
 import type {ChatEvent, Message, RuntimeInfo} from "../api/chat";
-import {createChatStream, interruptSession} from "../api/chat";
+import {createChatStream, getSession, getSessionTurns, interruptSession} from "../api/chat";
 
 const {Text} = Typography;
 const {TextArea} = Input;
@@ -452,6 +452,39 @@ export default function ChatWindow({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({behavior: "smooth"});
   }, [localMessages, streamingContent, liveEvents]);
+
+  // Poll for CLI-side message changes every 2 seconds
+  useEffect(() => {
+    if (!sessionId || streaming) return;
+
+    let cancelled = false;
+    let prevCount = localMessages.length;
+
+    const poll = async () => {
+      if (cancelled || streaming) return;
+      try {
+        const data = await getSessionTurns(sessionId);
+        if (cancelled || streaming) return;
+        if (data.count !== prevCount) {
+          prevCount = data.count;
+          const sessionData = await getSession(sessionId);
+          if (!cancelled && !streaming) {
+            setLocalMessages(sessionData.messages);
+          }
+        }
+      } catch {
+        // Ignore poll errors
+      }
+    };
+
+    // Check immediately then every 2 seconds
+    poll();
+    const interval = setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [sessionId, streaming, localMessages.length]);
 
   const effectiveModel = selectedModel ? JSON.parse(selectedModel) : null;
 

@@ -144,6 +144,13 @@ async def get_session(session_id: str):
     }
 
 
+@app.get("/sessions/{session_id}/turns")
+async def get_session_turns(session_id: str):
+    """Return current message count for the session. Frontend polls this to detect CLI changes."""
+    messages = service.get_session_messages(session_id)
+    return {"count": len(messages), "session_id": session_id}
+
+
 @app.patch("/sessions/{session_id}")
 async def rename_session(session_id: str, req: RenameSessionRequest):
     try:

@@ -169,3 +169,11 @@ export async function listSessions(): Promise<SessionSummary[]> {
   const data = await res.json() as {sessions: SessionSummary[]};
   return data.sessions;
 }
+
+export async function getSessionTurns(sessionId: string): Promise<{count: number}> {
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/turns`);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+  return await res.json() as {count: number};
+}
