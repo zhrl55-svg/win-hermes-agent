@@ -269,32 +269,69 @@ python -m pytest tests/ -q
 
 ## Web UI
 
-Hermes Agent 提供可选的 Web 聊天界面，基于 React + FastAPI 构建。
+Hermes Agent 提供可选的 Web 聊天界面，基于 React + FastAPI 构建，与 CLI 共用同一份配置、会话存储和工具调用路径。
 
-### 启动 Web UI
+### 方式一：一键安装（推荐）
 
 ```powershell
-cd web-ui
+# 安装 web-ui（npm 依赖 + 构建前端产物）
+hermes webui install
 
-# 启动后端（Terminal 1）
-cd backend
+# 启动后端（后台运行）
+hermes webui start
+
+# 停止后端
+hermes webui stop
+
+# 查看状态
+hermes webui status
+
+# 前台运行（调试用）
+hermes webui serve
+```
+
+> `hermes webui install` 只需运行一次，之后直接用 `start` 即可。
+
+### 方式二：手动启动
+
+**后端：**
+```powershell
+cd web-ui\backend
 pip install -r requirements.txt
-python main.py
+python -m uvicorn main:app --host 127.0.0.1 --port 8000
+```
 
-# 启动前端（Terminal 2）
-cd frontend
+**前端：**
+```powershell
+cd web-ui\frontend
 npm install
 npm run dev
 ```
 
 访问 `http://localhost:5173/` 即可使用 Web 界面。
 
+### 开机自启（Windows）
+
+```powershell
+# 需要管理员权限
+hermes gateway install
+
+# 立即启动（不等待登录）
+hermes gateway start
+
+# 查看状态
+hermes gateway status
+```
+
+Gateway 安装为 Windows Task Scheduler 任务，登录时自动启动。
+
 ### 功能特性
 
-- 实时流式聊天响应
-- 多模型选择（支持 OpenRouter、MiniMax 等）
+- 实时流式聊天响应（SSE）
+- 多模型选择（支持多 provider + 多模型）
 - 会话管理（创建、切换、重命名、删除）
 - 浅色/深色主题切换
+- 与 CLI 共用 `~/.hermes/config.yaml`、`.env`、`state.db`
 - 响应式设计
 
 ### 技术栈
@@ -302,8 +339,9 @@ npm run dev
 | 层级 | 技术 |
 |------|------|
 | 前端 | React + Ant Design + TypeScript + Vite |
-| 后端 | FastAPI (Python) |
+| 后端 | FastAPI (Python) + uvicorn |
 | 通信 | Server-Sent Events (SSE) 流式响应 |
+| 共享存储 | Hermes SessionDB + shared Hermes config |
 
 ---
 
