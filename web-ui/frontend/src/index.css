@@ -32,10 +32,7 @@ html, body, #root {
   background: #a1a1a1;
 }
 
-/* Dark mode scrollbar */
-[data-theme="dark"] ::-webkit-scrollbar-thumb {
-  background: #555;
-}
-[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
-  background: #777;
+/* Code blocks (shared light/dark via CSS vars) */
+pre code {
+  font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
 }
