@@ -73,6 +73,9 @@ def get_hermes_home() -> Path:
         return safe_path(Path(appdata) / "HermesAgent")
     return safe_path(Path.home() / ".hermes")
 
+_win_stdout_wrapper = None  # held to prevent premature GC
+_win_stderr_wrapper = None
+
 def setup_windows_env():
     if not is_windows():
         return
@@ -81,6 +84,26 @@ def setup_windows_env():
     try:
         import subprocess
         subprocess.run(["chcp", "65001"], capture_output=True, check=False)
+    except Exception:
+        pass
+    # Wrap sys.stdout/stderr so Unicode chars print correctly in GBK consoles.
+    # Keep module-level references so they are never garbage-collected and
+    # close the underlying file descriptors.
+    global _win_stdout_wrapper, _win_stderr_wrapper
+    try:
+        import io
+        if sys.stdout is not None and not isinstance(sys.stdout, io.TextIOWrapper):
+            _win_stdout_wrapper = io.TextIOWrapper(
+                sys.stdout.buffer, encoding="utf-8", errors="replace",
+            )
+            _win_stdout_wrapper.extra_flags = sys.stdout.extra_flags if hasattr(sys.stdout, "extra_flags") else 0
+            sys.stdout = _win_stdout_wrapper
+        if sys.stderr is not None and not isinstance(sys.stderr, io.TextIOWrapper):
+            _win_stderr_wrapper = io.TextIOWrapper(
+                sys.stderr.buffer, encoding="utf-8", errors="replace",
+            )
+            _win_stderr_wrapper.extra_flags = sys.stderr.extra_flags if hasattr(sys.stderr, "extra_flags") else 0
+            sys.stderr = _win_stderr_wrapper
     except Exception:
         pass
     logger.info("Windows environment configured")
