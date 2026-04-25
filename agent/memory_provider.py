@@ -150,6 +150,21 @@ class MemoryProvider(ABC):
         Providers use what they need; extras are ignored.
         """
 
+    def on_every_n_turns(self, turn_count: int, recent_messages: List[Dict[str, Any]]) -> None:
+        """Called every N turns for periodic summarization / fact extraction.
+
+        Use for periodic AI summarization that accumulates across the session.
+
+        Args:
+            turn_count: total number of user turns so far
+            recent_messages: list of recent conversation messages (role + content)
+
+        This hook is called by AIAgent every N turns (controlled by
+        ``memory_summary_every_n_turns`` config, default 10). Providers that
+        implement periodic AI summarization (e.g. holographic with auto_summarize)
+        use this to trigger incremental fact extraction using a cheap model.
+        """
+
     def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
         """Called when a session ends (explicit exit or timeout).
 

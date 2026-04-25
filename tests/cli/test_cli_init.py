@@ -3,6 +3,7 @@ that only manifest at runtime (not in mocked unit tests)."""
 
 import os
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -158,6 +159,61 @@ class TestSingleQueryState:
         assert cli._voice_tts_done.is_set()
         assert hasattr(cli, "_interrupt_queue")
         assert hasattr(cli, "_pending_input")
+
+
+class TestSessionSummaryPrefill:
+    def test_last_session_summary_is_included_in_prefill_messages(self, tmp_path):
+        import importlib
+
+        summary_dir = tmp_path / "session_summaries"
+        summary_dir.mkdir(parents=True)
+        (summary_dir / "last_session.md").write_text(
+            "---\ndate: 2026-04-25 17:00\ntopics: [跨会话摘要]\n---\n\n继续检查 pending 项。\n",
+            encoding="utf-8",
+        )
+
+        prompt_toolkit_stubs = {
+            "prompt_toolkit": MagicMock(),
+            "prompt_toolkit.history": MagicMock(),
+            "prompt_toolkit.styles": MagicMock(),
+            "prompt_toolkit.patch_stdout": MagicMock(),
+            "prompt_toolkit.application": MagicMock(),
+            "prompt_toolkit.layout": MagicMock(),
+            "prompt_toolkit.layout.processors": MagicMock(),
+            "prompt_toolkit.filters": MagicMock(),
+            "prompt_toolkit.layout.dimension": MagicMock(),
+            "prompt_toolkit.layout.menus": MagicMock(),
+            "prompt_toolkit.widgets": MagicMock(),
+            "prompt_toolkit.key_binding": MagicMock(),
+            "prompt_toolkit.completion": MagicMock(),
+            "prompt_toolkit.formatted_text": MagicMock(),
+            "prompt_toolkit.auto_suggest": MagicMock(),
+        }
+        clean_config = {
+            "model": {
+                "default": "anthropic/claude-opus-4.6",
+                "base_url": "https://openrouter.ai/api/v1",
+                "provider": "auto",
+            },
+            "display": {"compact": False, "tool_progress": "all"},
+            "agent": {},
+            "terminal": {"env_type": "local"},
+        }
+
+        with patch.dict(sys.modules, prompt_toolkit_stubs), patch.dict(
+            "os.environ", {"LLM_MODEL": "", "HERMES_MAX_ITERATIONS": ""}, clear=False
+        ):
+            import cli as _cli_mod
+
+            _cli_mod = importlib.reload(_cli_mod)
+            with patch.object(_cli_mod, "get_tool_definitions", return_value=[]), patch.dict(
+                _cli_mod.__dict__, {"CLI_CONFIG": clean_config, "_hermes_home": Path(tmp_path)}
+            ):
+                cli_obj = _cli_mod.HermesCLI()
+
+        assert cli_obj.prefill_messages
+        assert "上一轮已结束会话的摘要" in cli_obj.prefill_messages[0]["content"]
+        assert "继续检查 pending 项。" in cli_obj.prefill_messages[0]["content"]
 
 
 class TestHistoryDisplay:

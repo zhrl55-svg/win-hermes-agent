@@ -271,6 +271,17 @@ class MemoryManager:
                     provider.name, e,
                 )
 
+    def on_every_n_turns(self, turn_count: int, recent_messages: List[Dict[str, Any]]) -> None:
+        """Notify all providers for periodic summarization every N turns."""
+        for provider in self._providers:
+            try:
+                provider.on_every_n_turns(turn_count, recent_messages)
+            except Exception as e:
+                logger.debug(
+                    "Memory provider '%s' on_every_n_turns failed: %s",
+                    provider.name, e,
+                )
+
     def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
         """Notify all providers of session end."""
         for provider in self._providers:

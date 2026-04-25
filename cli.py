@@ -111,6 +111,44 @@ def _load_prefill_messages(file_path: str) -> List[Dict[str, Any]]:
         return []
 
 
+
+def _load_last_session_summary_prefill() -> List[Dict[str, Any]]:
+    """Load last_session.md as ephemeral context for the first turn of a new session.
+
+    This keeps cross-session continuity inside the model context instead of only
+    printing the summary to the terminal wrapper.
+    """
+    summary_path = _hermes_home / "session_summaries" / "last_session.md"
+    if not summary_path.exists():
+        return []
+    try:
+        text = summary_path.read_text(encoding="utf-8").strip()
+    except Exception as e:
+        logger.warning("Failed to read last session summary from %s: %s", summary_path, e)
+        return []
+    if not text:
+        return []
+
+    return [
+        {
+            "role": "user",
+            "content": (
+                "[跨会话上下文，不是当前用户新问题]\n"
+                "以下是上一轮已结束会话的摘要。请把它仅作为延续上下文，用于理解用户刚进入新会话时的背景、已做决定和待办事项；"
+                "不要把它误当作当前轮需要直接回答的问题。\n\n"
+                f"{text}"
+            ),
+        },
+        {
+            "role": "assistant",
+            "content": (
+                "已收到上一轮会话摘要。我会把它作为当前新会话的背景上下文，"
+                "优先用于承接主题、决策和未完成事项。"
+            ),
+        },
+    ]
+
+
 def _parse_reasoning_config(effort: str) -> dict | None:
     """Parse a reasoning effort level into an OpenRouter reasoning config dict."""
     from hermes_constants import parse_reasoning_effort
@@ -1734,9 +1772,11 @@ class HermesCLI:
         self.personalities = CLI_CONFIG["agent"].get("personalities", {})
         
         # Ephemeral prefill messages (few-shot priming, never persisted)
-        self.prefill_messages = _load_prefill_messages(
+        configured_prefill = _load_prefill_messages(
             CLI_CONFIG["agent"].get("prefill_messages_file", "")
         )
+        session_summary_prefill = _load_last_session_summary_prefill()
+        self.prefill_messages = session_summary_prefill + configured_prefill
         
         # Reasoning config (OpenRouter reasoning effort level)
         self.reasoning_config = _parse_reasoning_config(

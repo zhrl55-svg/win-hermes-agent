@@ -138,6 +138,69 @@ def test_aiagent_reuses_existing_errors_log_handler():
             root_logger.addHandler(handler)
 
 
+def test_shutdown_memory_provider_writes_last_session_summary(tmp_path, monkeypatch):
+    with (
+        patch(
+            "run_agent.get_tool_definitions",
+            return_value=_make_tool_defs("web_search"),
+        ),
+        patch("run_agent.check_toolset_requirements", return_value={}),
+        patch("run_agent.OpenAI"),
+    ):
+        agent = AIAgent(
+            api_key="test-key-1234567890",
+            quiet_mode=True,
+            skip_context_files=True,
+            skip_memory=True,
+        )
+
+    monkeypatch.setattr(run_agent, "get_hermes_home", lambda: tmp_path)
+    agent._memory_manager = MagicMock()
+    agent.context_compressor = MagicMock()
+
+    messages = [
+        {"role": "user", "content": "我们排查 Hermes 的跨会话摘要是否正常工作。"},
+        {"role": "assistant", "content": "我会检查写入和加载链路。"},
+    ]
+
+    mock_summary = {
+        "content": json.dumps({
+            "topics": ["记忆系统", "会话摘要"],
+            "decisions": ["修复自动写入 last_session.md"],
+            "pending": ["验证新会话自动加载"],
+            "memory_hints": ["用户重视跨会话连续性"],
+            "summary": "本次会话聚焦于排查 Hermes 的跨会话摘要链路。已经确认需要在会话结束时自动写入 last_session.md，并将在下一步验证新会话是否正确加载。",
+        })
+    }
+
+    with patch("agent.auxiliary_client.call_llm", return_value=mock_summary):
+        agent.shutdown_memory_provider(messages)
+
+    summary_path = tmp_path / "session_summaries" / "last_session.md"
+    assert summary_path.exists()
+    text = summary_path.read_text(encoding="utf-8")
+    assert "topics: [记忆系统, 会话摘要]" in text
+    assert "decisions: [修复自动写入 last_session.md]" in text
+    assert "pending: [验证新会话自动加载]" in text
+    assert "memory_hints: [用户重视跨会话连续性]" in text
+    assert "本次会话聚焦于排查 Hermes 的跨会话摘要链路" in text
+
+
+def test_generate_last_session_summary_payload_has_fallback(agent):
+    messages = [
+        {"role": "user", "content": "检查自动摘要是否会写入文件"},
+        {"role": "assistant", "content": "我来检查。"},
+        {"role": "user", "content": "如果失败就给出回退方案"},
+    ]
+
+    with patch("agent.auxiliary_client.call_llm", side_effect=RuntimeError("no provider")):
+        payload = agent._generate_last_session_summary_payload(messages)
+
+    assert payload["summary"]
+    assert isinstance(payload["topics"], list)
+    assert any("检查自动摘要是否会写入文件" in item for item in payload["topics"])
+
+
 class TestProviderModelNormalization:
     def test_aiagent_strips_matching_native_provider_prefix(self):
         with (

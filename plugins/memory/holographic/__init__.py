@@ -119,6 +119,7 @@ class HolographicMemoryProvider(MemoryProvider):
         self._store = None
         self._retriever = None
         self._min_trust = float(self._config.get("min_trust_threshold", 0.3))
+        self._last_summary_turn = 0
 
     @property
     def name(self) -> str:
@@ -177,6 +178,7 @@ class HolographicMemoryProvider(MemoryProvider):
             hrr_weight=hrr_weight,
             hrr_dim=hrr_dim,
         )
+        self._last_summary_turn = 0
         self._session_id = session_id
 
     def system_prompt_block(self) -> str:
@@ -233,6 +235,116 @@ class HolographicMemoryProvider(MemoryProvider):
             return self._handle_fact_feedback(args)
         return tool_error(f"Unknown tool: {tool_name}")
 
+    def on_every_n_turns(self, turn_count: int, recent_messages: List[Dict[str, Any]]) -> None:
+        """Extract facts from recent messages using a cheap LLM, every N turns.
+
+        Called by AIAgent every ``memory_summary_every_n_turns`` (default 10).
+        Only processes messages since the last summary to avoid duplicate work.
+        """
+        if not self._config.get("auto_summarize", False):
+            return
+        if not self._store or not recent_messages:
+            return
+
+        # Only process messages added since last summary
+        new_messages = recent_messages[self._last_summary_turn:]
+        if not new_messages:
+            return
+
+        self._last_summary_turn = len(recent_messages)
+
+        # Build conversation excerpt for the LLM
+        excerpt = "\n".join(
+            f"[{msg.get('role', '?')}]: {msg.get('content', '')[:500]}"
+            for msg in new_messages
+            if msg.get("content") and isinstance(msg.get("content"), str)
+        )
+        if len(excerpt) < 50:
+            return
+
+        try:
+            fact_list = self._summarize_with_llm(excerpt)
+        except Exception as e:
+            logger.debug("Holographic LLM summarization failed: %s", e)
+            return
+
+        if not fact_list:
+            return
+
+        extracted = 0
+        for item in fact_list:
+            if not isinstance(item, dict):
+                continue
+            content = str(item.get("content", "")).strip()
+            if not content or len(content) < 5:
+                continue
+            category = item.get("category", "general")
+            trust = float(item.get("trust", self._min_trust))
+            if trust < 0.1:
+                trust = self._min_trust
+            try:
+                self._store.add_fact(content, category=category, trust=trust)
+                extracted += 1
+            except Exception:
+                pass
+
+        if extracted:
+            logger.info("Summarized %d facts from last %d turns", extracted, len(new_messages))
+
+    def _summarize_with_llm(self, excerpt: str) -> List[dict]:
+        """Call cheap LLM to extract structured facts from conversation excerpt."""
+        from agent.auxiliary_client import call_llm
+
+        system_prompt = (
+            "You are a factual memory extraction system. From the conversation excerpt below, "
+            "extract all factual statements, preferences, decisions, and knowledge that should "
+            "be remembered for long-term context. Return a JSON list of facts, each with:\n"
+            "- content: the factual statement (max 200 chars)\n"
+            "- category: one of user_pref, project, general, tool\n"
+            "- trust: float 0.0-1.0, how confident you are this is accurate (use 0.6-0.9)\n\n"
+            "Rules:\n"
+            "1. Extract concrete facts, not summaries of what was said\n"
+            "2. For user preferences use category=user_pref\n"
+            "3. For technical decisions or project facts use category=project\n"
+            "4. For tool/API facts use category=tool\n"
+            "5. Trust should be high (0.7-0.9) for explicit statements, lower (0.5-0.7) for implicit\n"
+            "6. Return empty list if nothing worth remembering found\n"
+            "7. Output ONLY the JSON list, no markdown, no explanation"
+        )
+
+        response = call_llm(
+            task="memory_summary",
+            system_prompt=system_prompt,
+            user_prompt=f"Conversation excerpt:\n{excerpt[:3000]}",
+            temperature=0.3,
+            max_tokens=600,
+        )
+
+        text = (response.get("content") or "").strip()
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1]
+            text = text.rsplit("\n```", 1)[0]
+        text = text.strip()
+
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                return parsed
+            return []
+        except json.JSONDecodeError:
+            # Try to extract first list-like structure
+            import re
+            match = re.search(r"\[.*\]", text, re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group(0))
+                except Exception:
+                    pass
+            return []
+
     def on_session_end(self, messages: List[Dict[str, Any]]) -> None:
         if not self._config.get("auto_extract", False):
             return
@@ -252,6 +364,7 @@ class HolographicMemoryProvider(MemoryProvider):
     def shutdown(self) -> None:
         self._store = None
         self._retriever = None
+        self._last_summary_turn = 0
 
     # -- Tool handlers -------------------------------------------------------
 

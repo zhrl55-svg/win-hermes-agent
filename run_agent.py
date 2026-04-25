@@ -1093,6 +1093,8 @@ class AIAgent:
         self._memory_nudge_interval = 10
         self._memory_flush_min_turns = 6
         self._turns_since_memory = 0
+        self._turns_since_summary = 0
+        self._memory_summary_every_n_turns = 10
         self._iters_since_skill = 0
         if not skip_memory:
             try:
@@ -1101,6 +1103,7 @@ class AIAgent:
                 self._user_profile_enabled = mem_config.get("user_profile_enabled", False)
                 self._memory_nudge_interval = int(mem_config.get("nudge_interval", 10))
                 self._memory_flush_min_turns = int(mem_config.get("flush_min_turns", 6))
+                self._memory_summary_every_n_turns = int(mem_config.get("memory_summary_every_n_turns", 10))
                 if self._memory_enabled or self._user_profile_enabled:
                     from tools.memory_tool import MemoryStore
                     self._memory_store = MemoryStore(
@@ -2926,6 +2929,139 @@ class AIAgent:
                 )
             except Exception:
                 pass
+        try:
+            self._write_last_session_summary(messages or [])
+        except Exception:
+            pass
+
+    def _write_last_session_summary(self, messages: List[Dict[str, Any]]) -> None:
+        """Persist a concise last-session summary for wrapper-based session resume."""
+        if not messages:
+            return
+
+        summary_path = get_hermes_home() / "session_summaries" / "last_session.md"
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+
+        payload = self._generate_last_session_summary_payload(messages)
+        if not payload:
+            return
+
+        topics = payload.get("topics") or []
+        decisions = payload.get("decisions") or []
+        pending = payload.get("pending") or []
+        memory_hints = payload.get("memory_hints") or []
+        summary = str(payload.get("summary") or "").strip()
+        if not summary:
+            return
+
+        def _fmt_list(items: List[str]) -> str:
+            cleaned = [str(x).strip().replace("\n", " ") for x in items if str(x).strip()]
+            return "[" + ", ".join(cleaned) + "]"
+
+        text = (
+            "---\n"
+            f"date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+            f"topics: {_fmt_list(topics)}\n"
+            f"decisions: {_fmt_list(decisions)}\n"
+            f"pending: {_fmt_list(pending)}\n"
+            f"memory_hints: {_fmt_list(memory_hints)}\n"
+            "---\n\n"
+            f"{summary}\n"
+        )
+        summary_path.write_text(text, encoding="utf-8")
+
+    def _generate_last_session_summary_payload(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Return structured payload for last_session.md.
+
+        Uses an auxiliary LLM when available, with a deterministic local
+        fallback so session continuity still works when the summarizer fails.
+        """
+        excerpt_lines: List[str] = []
+        text_messages = 0
+        for msg in messages[-60:]:
+            role = str(msg.get("role") or "?")
+            content = msg.get("content")
+            if isinstance(content, str):
+                content = content.strip()
+            else:
+                content = ""
+            if not content or role == "tool":
+                continue
+            excerpt_lines.append(f"[{role}] {content[:500]}")
+            text_messages += 1
+
+        if not excerpt_lines:
+            return {}
+
+        excerpt = "\n".join(excerpt_lines)
+
+        try:
+            from agent.auxiliary_client import call_llm
+
+            system_prompt = (
+                "You summarize the just-finished Hermes conversation for the NEXT new session. "
+                "Return ONLY a JSON object with keys: topics, decisions, pending, memory_hints, summary. "
+                "topics/decisions/pending/memory_hints must be arrays of short strings (max 5 each). "
+                "summary must be 3-5 concise Chinese sentences. Do not include markdown fences."
+            )
+            user_prompt = (
+                "Summarize this completed session for cross-session continuity. Focus on: "
+                "main topics discussed, decisions made, unfinished items, and durable memory hints.\n\n"
+                f"Conversation excerpt:\n{excerpt[:6000]}"
+            )
+            response = call_llm(
+                task="memory_summary",
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=0.2,
+                max_tokens=700,
+            )
+            text = str((response or {}).get("content") or "").strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[-1]
+                text = text.rsplit("\n```", 1)[0]
+            data = json.loads(text)
+            if isinstance(data, dict) and str(data.get("summary") or "").strip():
+                return {
+                    "topics": data.get("topics") or [],
+                    "decisions": data.get("decisions") or [],
+                    "pending": data.get("pending") or [],
+                    "memory_hints": data.get("memory_hints") or [],
+                    "summary": str(data.get("summary") or "").strip(),
+                }
+        except Exception as exc:
+            logger.debug("last_session summary LLM generation failed: %s", exc)
+
+        preview = []
+        seen = set()
+        for msg in messages:
+            if msg.get("role") != "user":
+                continue
+            content = msg.get("content")
+            if not isinstance(content, str):
+                continue
+            cleaned = " ".join(content.strip().split())
+            if len(cleaned) < 4:
+                continue
+            cleaned = cleaned[:60]
+            if cleaned in seen:
+                continue
+            seen.add(cleaned)
+            preview.append(cleaned)
+            if len(preview) >= 3:
+                break
+
+        return {
+            "topics": preview,
+            "decisions": [],
+            "pending": [],
+            "memory_hints": [],
+            "summary": (
+                f"上次会话共包含{text_messages}条可总结消息。"
+                + (f"主要用户话题包括：{'；'.join(preview)}。" if preview else "")
+                + "如果要继续，请结合最近会话记录与长期记忆继续推进。"
+            ),
+        }
     
     def close(self) -> None:
         """Release all resources held by this agent instance.
@@ -6795,6 +6931,7 @@ class AIAgent:
             # Reset nudge counters
             if function_name == "memory":
                 self._turns_since_memory = 0
+                self._turns_since_summary = 0
             elif function_name == "skill_manage":
                 self._iters_since_skill = 0
 
@@ -6998,6 +7135,7 @@ class AIAgent:
             # Reset nudge counters when the relevant tool is actually used
             if function_name == "memory":
                 self._turns_since_memory = 0
+                self._turns_since_summary = 0
             elif function_name == "skill_manage":
                 self._iters_since_skill = 0
 
@@ -7645,6 +7783,7 @@ class AIAgent:
             if self._turns_since_memory >= self._memory_nudge_interval:
                 _should_review_memory = True
                 self._turns_since_memory = 0
+                self._turns_since_summary = 0
 
         # Add user message
         user_msg = {"role": "user", "content": user_message}
@@ -10240,6 +10379,23 @@ class AIAgent:
                 self._memory_manager.queue_prefetch_all(original_user_message)
             except Exception:
                 pass
+
+        # Periodic memory summarization: every N turns, call on_every_n_turns
+        # so providers can extract facts using a cheap model.
+        if (self._memory_manager
+                and self._memory_summary_every_n_turns > 0
+                and final_response
+                and not interrupted):
+            self._turns_since_summary += 1
+            if self._turns_since_summary >= self._memory_summary_every_n_turns:
+                self._turns_since_summary = 0
+                try:
+                    self._memory_manager.on_every_n_turns(
+                        self._user_turn_count,
+                        list(messages),
+                    )
+                except Exception:
+                    pass
 
         # Background memory/skill review — runs AFTER the response is delivered
         # so it never competes with the user's task for model attention.
